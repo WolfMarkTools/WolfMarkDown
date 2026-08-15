@@ -1,0 +1,68 @@
+{
+  "semantic-structure-recovery": {
+    "headings": [
+      "Executive Recommendation",
+      "Primary Provider and Primitive Deep-Dive Verdicts",
+      "Verdict on Architecture B3: Manual Token Approval",
+      "Verdict on Architecture B4: Intermediate Wallet Pull and Submit",
+      "Verdict on Atomic B4: Single-Transaction Bundling",
+      "Verdict on Policy Vault",
+      "Verdict on Provider A",
+      "Verdict on Provider B",
+      "Verdict on Other Infrastructure",
+      "Comprehensive Provider and Primitive Feature Comparison Matrix",
+      "Security Comparison Matrix",
+      "User Experience (UX) Comparison Matrix",
+      "Financial and Rent Cost Comparison Matrix",
+      "Technical Verification Experiments",
+      "Experiment 3: Boundary Limit Enforcement",
+      "Operational Protocol Inquiries for the Payment Provider",
+      "Ranked Architecture Shortlist"
+    ],
+    "minTables": 5,
+    "preserve": [
+      "test_program_id_001",
+      "test_mint_address_001",
+      "test_destination_ata_001",
+      "test_token_program_001",
+      "subscriptions::transfer_recurring",
+      "spl_token::transfer_checked",
+      "spl_token::approveChecked",
+      "SubscriptionAuthority",
+      "RecurringDelegation",
+      "u64::MAX",
+      "submit_signed_*",
+      "getTransaction",
+      "getSignatureStatuses"
+    ]
+  },
+  "policy-specification-recovery": {
+    "headings": [
+      "Purpose",
+      "Policy Rules",
+      "Exception Review",
+      "Approval Sequence",
+      "Enforcement Verdicts",
+      "Verdict on Production",
+      "Verdict on Staging",
+      "Implementation Notes"
+    ],
+    "minTables": 1,
+    "preserve": ["service_release_v2", "RELEASE_APPROVER", "deploy_release", "getDeploymentStatus"]
+  },
+  "meeting-notes-recovery": {
+    "headings": ["Meeting Details", "Decisions", "Decision 1: Runtime Baseline", "Decision 2: Rollout Order", "Action Register", "Discussion", "Open Questions"],
+    "minTables": 1,
+    "preserve": ["2026-08-15", "migrate_schema_v3", "getMigrationStatus", "MIGRATION_CHECKPOINT"]
+  },
+  "mixed-operations-report-recovery": {
+    "headings": ["Executive Summary", "Service Comparison", "Incident Findings", "Finding A: Queue Saturation", "Finding B: Delayed Notifications", "Validation Experiments", "Experiment 1: Intake Boundary", "Experiment 2: Regional Failover", "Operational Costs", "Recommendations"],
+    "minTables": 2,
+    "preserve": ["99.95%", "MAX_ACTIVE_IMPORTS", "import_batch_v4", "relay_failover", "getImportStatus", "capacity_exceeded", "getRelayStatus", "secondary_active", "£1200"]
+  },
+  "ambiguous-structure-preservation": {
+    "maxTables": 0,
+    "preserve": ["alpha-east\t12", "Do not start a new deployment while the previous job is still finalising.", "Status: pending", "RUN_42"],
+    "forbidTableText": ["Region", "Count"]
+  }
+}

@@ -16,7 +16,7 @@ license: MIT
 compatibility: Requires Node.js 20+
 metadata:
   author: WolfMark
-  version: "0.1.0"
+  version: "0.2.1"
   display-name: WolfMarkDown
 ---
 
@@ -103,6 +103,8 @@ Do not sanitise, compose, or rewrite. Run:
 Report PASS or FAIL with the verifier errors.
 
 ## Clean
+
+Before formatting, inspect whether the source contains flattened semantic structure. A Prettier-valid document can still be a failed transformation if it has lost tables, headings, lists, or relationships. Do not let Prettier become the first structural transformation: make the agent-owned semantic decisions and recover clear structure before running the formatter.
 
 1. Read the complete existing file.
 2. Snapshot the original bytes to a unique OS temp file. Do not commit it. Do not overwrite it later.

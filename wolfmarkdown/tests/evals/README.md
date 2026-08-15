@@ -46,4 +46,4 @@ Fresh-agent runs on 2026-08-15 used only the redesigned skill and raw synthetic 
 
 Each output also passed the deterministic verifier, protected-token integrity against its untouched fixture, and idempotence. Forward-test outputs remained in OS temporary storage and are not repository fixtures.
 
-Current-skill semantic sweep on 2026-08-15: PASS, 19/19 evals. The structural regression recovered five matrices, eight required section boundaries, seven sibling verdicts, all labelled groups and nested steps, and all 13 protected identifiers. The sweep also confirmed no-op behaviour for already-good Markdown, transcript and code preservation, safe target collision, and exact restoration after forced failure.
+The v0.2.1 Node suite exercises the evaluator with both a successful structural recovery and a failing invented-table candidate. A full agent run still requires a host-produced candidate and should report the host, model, source scope, and unresolved ambiguities alongside deterministic verification.

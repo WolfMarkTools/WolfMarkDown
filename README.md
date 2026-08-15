@@ -4,15 +4,12 @@
 
 <p align="center">Agent judgement for structure. Deterministic tooling for proof.</p>
 
-<div align="center">
-
-[![GitHub release](https://img.shields.io/github/v/release/WolfMarkTools/WolfMarkDown)](https://github.com/WolfMarkTools/WolfMarkDown/releases/latest)
-[![MIT licence](https://img.shields.io/github/license/WolfMarkTools/WolfMarkDown)](./LICENSE)
-![Node.js 20+](https://img.shields.io/badge/Node.js-20%2B-339933?logo=node.js&logoColor=white)
-[![GitHub stars](https://img.shields.io/github/stars/WolfMarkTools/WolfMarkDown?style=social)](https://github.com/WolfMarkTools/WolfMarkDown/stargazers)
-![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/WolfMarkTools/WolfMarkDown?utm_source=oss&utm_medium=github&utm_campaign=WolfMarkTools%2FWolfMarkDown&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
-
-</div>
+<p align="center">
+  <a href="https://github.com/WolfMarkTools/WolfMarkDown/releases/latest"><img alt="GitHub release" src="https://img.shields.io/github/v/release/WolfMarkTools/WolfMarkDown"></a>
+  <a href="./LICENSE"><img alt="MIT licence" src="https://img.shields.io/github/license/WolfMarkTools/WolfMarkDown"></a>
+  <img alt="Node.js 20+" src="https://img.shields.io/badge/Node.js-20%2B-339933?logo=node.js&logoColor=white">
+  <a href="https://github.com/WolfMarkTools/WolfMarkDown/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/WolfMarkTools/WolfMarkDown?style=social"></a>
+</p>
 
 AI agents can produce excellent research, documentation, and plans while still leaving behind broken Markdown: malformed tables, inconsistent headings, copied chat scaffolding, unclosed fences, excess whitespace, or accidental changes to technical identifiers.
 

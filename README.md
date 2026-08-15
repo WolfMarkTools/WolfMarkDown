@@ -137,6 +137,16 @@ Use `relay_v2` for the external wallet flow.
 
 The output recovers a table and headings, preserves the technical identifiers, and adds no information that was absent from the source. This is an illustrative structural example; semantic judgement remains agent-owned.
 
+## Examples
+
+The public examples show WolfMarkDown recovering structure from real agent-shaped Markdown without inventing missing meaning.
+
+- [Mobile App Migration Example](./examples/mobile-app-migration/README.md) — a complete before-and-after fixture covering chat-wrapper sanitisation, tab-separated tables, Unicode bullets, protected environment variables, and an intentionally ambiguous database note.
+- [Raw input](./examples/mobile-app-migration/input.md) — the source AI output before repair.
+- [Structured output](./examples/mobile-app-migration/output.md) — the resulting Markdown with headings, GFM tables, lists, and an `env` code block.
+
+The example README records the OpenCode harness, `GLM-5.2` model, and exact prompt used for reproduction.
+
 ## Supported-agent integration status
 
 WolfMarkDown has one canonical implementation. The table distinguishes repository-tested discovery paths from host acceptance that still needs a dedicated smoke test.

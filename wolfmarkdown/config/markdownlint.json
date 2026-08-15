@@ -1,0 +1,20 @@
+{
+  "MD013": false,
+  "MD034": false,
+  "MD041": false,
+  "MD040": false,
+  "MD004": {
+    "style": "dash"
+  },
+  "MD012": {
+    "maximum": 1
+  },
+  "MD022": true,
+  "MD031": true,
+  "MD032": true,
+  "MD058": true,
+  "MD046": {
+    "style": "fenced"
+  },
+  "MD009": true
+}

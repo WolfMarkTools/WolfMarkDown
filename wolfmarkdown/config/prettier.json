@@ -1,0 +1,6 @@
+{
+  "parser": "markdown",
+  "proseWrap": "never",
+  "embeddedLanguageFormatting": "off",
+  "endOfLine": "lf"
+}

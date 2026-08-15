@@ -4,7 +4,7 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { checkInstall, defaultDestination, installSkill, linkTypeFor, pathsPointAtSameDir, uninstallSkill } from "../lib/install-targets.mjs";
+import { checkInstall, defaultDestination, installSkill, linkTypeFor, npmExecutable, pathsPointAtSameDir, uninstallSkill } from "../lib/install-targets.mjs";
 import { candidateBinaries, inspectHealth } from "../lib/doctor.mjs";
 import { skillRoot } from "./helpers.mjs";
 
@@ -111,6 +111,23 @@ test("checkInstall succeeds when only the required shared link exists", async ()
 test("Windows binary detection includes cmd and bat shims", () => {
   assert.deepEqual(candidateBinaries("claude", "win32"), ["claude", "claude.exe", "claude.cmd", "claude.bat"]);
   assert.deepEqual(candidateBinaries("claude", "darwin"), ["claude", "claude.exe"]);
+});
+
+test("Windows install uses npm.cmd", () => {
+  assert.equal(npmExecutable("win32"), "npm.cmd");
+  assert.equal(npmExecutable("darwin"), "npm");
+  assert.equal(npmExecutable("linux"), "npm");
+});
+
+test("install replaces a dangling owned-looking symlink", async () => {
+  await withHome(async (home) => {
+    const dest = join(home, ".agents", "skills", "wolfmarkdown");
+    await mkdir(join(home, ".agents", "skills"), { recursive: true });
+    await symlink(join(home, "missing-canonical"), dest);
+    const result = await installSkill({ home, canonicalDir: skillRoot, skipDeps: true });
+    assert.equal(result.status, "created");
+    assert.equal(await readlink(dest), skillRoot);
+  });
 });
 
 test("install refuses to overwrite a real directory", async () => {

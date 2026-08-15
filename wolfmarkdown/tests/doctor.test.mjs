@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { inspectHealth } from "../lib/doctor.mjs";
+import { inspectHealth, mergeDetection } from "../lib/doctor.mjs";
 import { skillRoot } from "./helpers.mjs";
 
 async function withHome(run) {
@@ -104,6 +105,106 @@ test("absent optional agents are compatible but not detected", async () => {
     assert.equal(antigravity.tier, 1);
     const grok = health.agents.find((agent) => agent.id === "grok");
     assert.equal(grok.acceptance, "tested");
+  });
+});
+
+test("directory detection is not overwritten by a missing PATH binary", async () => {
+  await withHome(async (home) => {
+    await mkdir(join(home, ".cursor"));
+    const emptyPath = join(home, "empty-path");
+    await mkdir(emptyPath);
+    const previous = process.env.PATH;
+    process.env.PATH = emptyPath;
+    try {
+      const health = await inspectHealth({ home, canonicalDir: skillRoot });
+      const cursor = health.agents.find((agent) => agent.id === "cursor");
+      assert.equal(cursor.detected, true);
+      assert.equal(cursor.status, "Detected");
+    } finally {
+      process.env.PATH = previous;
+    }
+  });
+});
+
+test("installer-created Claude directory is not treated as Claude Code", async () => {
+  await withHome(async (home) => {
+    await mkdir(join(home, ".claude", "skills"), { recursive: true });
+    const emptyPath = join(home, "empty-path");
+    await mkdir(emptyPath);
+    const previous = process.env.PATH;
+    process.env.PATH = emptyPath;
+    try {
+      const health = await inspectHealth({ home, canonicalDir: skillRoot });
+      const claude = health.agents.find((agent) => agent.id === "claude");
+      assert.equal(claude.detected, false);
+    } finally {
+      process.env.PATH = previous;
+    }
+  });
+});
+
+test("Antigravity is not Ready when project root was not inspected and shared is missing", async () => {
+  await withHome(async (home) => {
+    const health = await inspectHealth({
+      home,
+      canonicalDir: skillRoot,
+      lookFor: {
+        claude: false,
+        codex: false,
+        cursor: false,
+        grok: false,
+        opencode: false,
+        gemini: false,
+        antigravity: true,
+        copilot: false,
+      },
+    });
+    const antigravity = health.agents.find((agent) => agent.id === "antigravity");
+    assert.equal(antigravity.detected, true);
+    assert.equal(antigravity.discoveryReady, false);
+    assert.notEqual(antigravity.status, "Ready");
+    assert.equal(health.discovery.ok, false);
+    assert.equal(health.ok, true);
+  });
+});
+
+test("mergeDetection keeps a directory hit when the binary is absent", () => {
+  assert.deepEqual(mergeDetection({ cursor: true, grok: false }, { cursor: false, grok: true }), {
+    cursor: true,
+    grok: true,
+  });
+});
+
+test("doctor text output does not label an undetected agent Ready", async () => {
+  await withHome(async (home) => {
+    const shared = join(home, ".agents", "skills", "wolfmarkdown");
+    await mkdir(join(home, ".agents", "skills"), { recursive: true });
+    await symlink(skillRoot, shared);
+    const binDir = join(home, "bin");
+    await mkdir(binDir);
+    await writeFile(join(binDir, "grok"), "#!/bin/sh\n");
+    await writeFile(join(binDir, "claude"), "#!/bin/sh\n");
+    const ran = spawnSync(process.execPath, [join(skillRoot, "scripts", "doctor.mjs")], {
+      encoding: "utf8",
+      env: { ...process.env, WOLFMARKDOWN_HOME: home, HOME: home, PATH: binDir },
+    });
+    assert.match(ran.stdout, /Grok Build: Compatible \/ Detected \/ Ready/);
+    assert.match(ran.stdout, /Claude Code: Compatible \/ Detected \/ Optional compatibility link missing/);
+    assert.match(ran.stdout, /Codex: Compatible \/ Not detected(?:\n|$)/);
+    assert.doesNotMatch(ran.stdout, /Codex:.*Ready/);
+    assert.match(ran.stdout, /Result: PASS/);
+    assert.equal(ran.status, 0);
+  });
+});
+
+test("doctor text Result is FAIL when discovery is missing", async () => {
+  await withHome(async (home) => {
+    const ran = spawnSync(process.execPath, [join(skillRoot, "scripts", "doctor.mjs")], {
+      encoding: "utf8",
+      env: { ...process.env, WOLFMARKDOWN_HOME: home, HOME: home },
+    });
+    assert.match(ran.stdout, /Result: FAIL/);
+    assert.notEqual(ran.status, 0);
   });
 });
 

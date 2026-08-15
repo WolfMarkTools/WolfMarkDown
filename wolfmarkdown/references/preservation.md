@@ -15,7 +15,7 @@ The verifier compares the snapshot with `verify-markdown.mjs --integrity-from <s
 - Longer base58 transaction signatures, including ~88-character values
 - Hex hashes of 40 or more characters
 - Semantic versions, including `1.2.3`, `v1.2.3`, `1.2.3-beta.1`, and `v1.2.3+build.7`
-- Path-like strings starting `./`, `../`, `~/`, or an absolute path with at least one directory
+- Path-like strings starting `./`, `../`, `~/`, a POSIX absolute path with at least one directory, or a Windows drive-letter path such as `C:\Users\mark\notes.md`
 - Environment variables in technical context: `API_KEY`, `$API_KEY`, `${API_KEY}`, `API_KEY=`, and `` `API_KEY` ``
 - Dates such as `2026-08-15` and `15/08/2026`
 - Percentages such as `12%`

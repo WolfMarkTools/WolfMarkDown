@@ -10,6 +10,20 @@ test("already-clean formatted Markdown passes verification", async () => {
   assert.equal(result.ok, true, result.errors.join("\n"));
 });
 
+test("GFM two-space hard line breaks pass verification", async () => {
+  const markdown = "# Title\n\nline  \nnext\n";
+  const formatted = await formatMarkdown(markdown);
+  assert.equal(formatted, markdown);
+  const result = await verifyMarkdown(formatted);
+  assert.equal(result.ok, true, result.errors.join("\n"));
+});
+
+test("one-column GFM tables pass verification", async () => {
+  const markdown = ["# Title", "", "| Title |", "| ----- |", "| row |", ""].join("\n");
+  const result = await verifyMarkdown(await formatMarkdown(markdown));
+  assert.equal(result.ok, true, result.errors.join("\n"));
+});
+
 test("escaped pipes inside table cells do not change the cell count", async () => {
   assert.deepEqual(cells("| a \\| b | ok |"), ["a \\| b", "ok"]);
   const markdown = ["# Title", "", "| Name | Value |", "| --- | --- |", "| a \\| b | ok |", ""].join("\n");

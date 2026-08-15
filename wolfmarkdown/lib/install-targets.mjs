@@ -22,6 +22,10 @@ export function linkTypeFor(platform) {
   return platform === "win32" ? "junction" : undefined;
 }
 
+export function npmExecutable(platform = process.platform) {
+  return platform === "win32" ? "npm.cmd" : "npm";
+}
+
 export function pathsPointAtSameDir(left, right) {
   return resolve(left) === resolve(right);
 }
@@ -93,8 +97,8 @@ async function dependenciesNeedRepair(canonicalDir) {
   }
 }
 
-function installDependencies(canonicalDir) {
-  const command = spawnSync("npm", ["ci"], { cwd: canonicalDir, stdio: "inherit" });
+function installDependencies(canonicalDir, platform = process.platform) {
+  const command = spawnSync(npmExecutable(platform), ["ci"], { cwd: canonicalDir, stdio: "inherit" });
   if (command.status !== 0) {
     throw installError("npm ci failed while installing WolfMarkDown dependencies.");
   }
@@ -103,7 +107,8 @@ function installDependencies(canonicalDir) {
 async function ensureOwnedLink(destination, canonicalDir, platform) {
   const { existing, owned, destReal } = await ownedLink(destination, canonicalDir);
   if (existing && !owned) {
-    if (destReal && isLegacyLabsCanonical(destReal)) {
+    const danglingLink = Boolean(existing.isSymbolicLink()) && !destReal;
+    if (danglingLink || (destReal && isLegacyLabsCanonical(destReal))) {
       await unlink(destination);
     } else {
       throw installError(`Destination exists and is not an owned WolfMarkDown link: ${destination}`);
@@ -120,7 +125,7 @@ async function ensureOwnedLink(destination, canonicalDir, platform) {
 export async function installSkill({ home, canonicalDir, skipDeps = false, platform = process.platform }) {
   const destination = defaultDestination(home);
   if (!skipDeps && (await dependenciesNeedRepair(canonicalDir))) {
-    installDependencies(canonicalDir);
+    installDependencies(canonicalDir, platform);
   }
   const statuses = {};
   for (const target of discoveryTargets(home)) {

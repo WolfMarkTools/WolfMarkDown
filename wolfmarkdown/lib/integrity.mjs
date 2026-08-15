@@ -17,6 +17,8 @@ const CAMEL_IDENT_RE = /\b[a-z][a-zA-Z0-9]*[A-Z][a-zA-Z0-9]*\b/g;
 const SNAKE_IDENT_RE = /\b[a-z]+(?:_[a-z0-9]+)+\b/g;
 const HOME_OR_REL_PATH_RE = /(?:~|\.{1,2})\/[^\s)`'"]+/g;
 const ABS_PATH_RE = /(?:^|[\s(`])(\/(?:[A-Za-z0-9._-]+\/)+[A-Za-z0-9._-]+)/g;
+const WIN_ABS_PATH_RE = /(?:^|[\s(`])([A-Za-z]:\\[^\s)`'"]+)/g;
+const WIN_FWD_PATH_RE = /(?:^|[\s(`])([A-Za-z]:\/(?:[A-Za-z0-9._-]+\/)+[A-Za-z0-9._-]+)/g;
 
 function addAll(text, pattern, tokens, pick = (match) => match[0]) {
   for (const match of text.matchAll(pattern)) {
@@ -37,6 +39,8 @@ export function extractFromText(text, tokens = new Set()) {
   addAll(text, CURRENCY_RE, tokens);
   addAll(text, HOME_OR_REL_PATH_RE, tokens);
   addAll(text, ABS_PATH_RE, tokens, (match) => match[1]);
+  addAll(text, WIN_ABS_PATH_RE, tokens, (match) => match[1]);
+  addAll(text, WIN_FWD_PATH_RE, tokens, (match) => match[1]);
   addAll(text, ENV_SCOPED_RE, tokens, (match) => match[1] || match[2]);
   addAll(text, ENV_ASSIGN_RE, tokens, (match) => match[1]);
   addAll(text, ENV_NAME_RE, tokens);

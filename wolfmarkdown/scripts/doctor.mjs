@@ -23,10 +23,11 @@ async function main(argv) {
     const agentLines = (health.agents ?? []).map((agent) => {
       const bits = [agent.acceptance === "pending" ? "Standard-compatible / Acceptance pending" : "Compatible"];
       bits.push(agent.detected ? "Detected" : "Not detected");
-      if (agent.discoveryReady) bits.push("Ready");
+      if (agent.status === "Ready") bits.push("Ready");
       else if (agent.status === "Optional compatibility link missing") bits.push(agent.status);
       return `${agent.name}: ${bits.join(" / ")}`;
     });
+    const overallOk = Boolean(health.runtime.ok && health.discovery.ok);
     process.stdout.write(
       [
         "WolfMarkDown Doctor",
@@ -39,7 +40,7 @@ async function main(argv) {
         `Claude Code: ${health.discovery.checks.claude ? "Ready" : "Optional compatibility link missing"}`,
         "Agent Coverage",
         ...agentLines,
-        `Result: ${health.ok ? "PASS" : "FAIL"}`,
+        `Result: ${overallOk ? "PASS" : "FAIL"}`,
         "",
       ].join("\n"),
     );

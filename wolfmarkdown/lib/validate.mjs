@@ -7,7 +7,7 @@ import { compareTokens, extractTokens } from "./integrity.mjs";
 import { parseMarkdown } from "./parse.mjs";
 import { loadMarkdownlintConfig } from "./paths.mjs";
 
-const DELIMITER = /^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)+\|?\s*$/;
+const DELIMITER = /^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$/;
 
 function splitUnescapedPipes(text) {
   const parts = [];
@@ -109,7 +109,8 @@ function whitespaceErrors(text) {
   const errors = [];
   const lines = text.split("\n");
   lines.forEach((line, index) => {
-    if (/[ \t]+$/u.test(line)) {
+    const trailing = line.match(/[ \t]+$/u);
+    if (trailing && trailing[0] !== "  ") {
       errors.push(`Trailing whitespace on line ${index + 1}.`);
     }
   });
@@ -144,7 +145,7 @@ export async function verifyMarkdown(text, { integrityFromText } = {}) {
     fences: false,
     frontmatter: false,
     whitespace: false,
-    integrity: integrityFromText == null,
+    integrity: integrityFromText == null ? null : false,
     idempotence: false,
   };
   const errors = [];

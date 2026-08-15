@@ -95,6 +95,7 @@ export async function inspectHealth({
   );
   discovery.checks.global = discovery.checks.shared;
   discovery.checks.claude = await discoveryPointsAt(claudeDestination(home), canonicalDir, [], "Claude Code");
+  let projectReady = false;
   if (projectRoot) {
     discovery.checks.project = await discoveryPointsAt(
       join(projectRoot, ".agents", "skills", "wolfmarkdown"),
@@ -102,6 +103,7 @@ export async function inspectHealth({
       discovery.errors,
       "Project discovery",
     );
+    projectReady = discovery.checks.project;
   } else {
     discovery.checks.project = true;
   }
@@ -111,7 +113,7 @@ export async function inspectHealth({
     lookFor,
     sharedReady: discovery.checks.shared,
     claudeReady: discovery.checks.claude,
-    projectReady: discovery.checks.project,
+    projectReady,
   });
   return { ok: runtime.ok, runtime, discovery, agents };
 }
@@ -127,10 +129,18 @@ const AGENT_CATALOGUE = [
   { id: "copilot", name: "GitHub Copilot", tier: 2, discovery: "shared", acceptance: "pending" },
 ];
 
+function claudeLooksInstalled(home) {
+  return (
+    existsSyncSafe(join(home, ".claude", "settings.json")) ||
+    existsSyncSafe(join(home, ".claude", "settings.local.json")) ||
+    existsSyncSafe(join(home, ".claude.json"))
+  );
+}
+
 function defaultLookFor(home) {
   const macAntigravity = join(home, "Library", "Application Support", "Antigravity");
   return {
-    claude: existsSyncSafe(join(home, ".claude")),
+    claude: claudeLooksInstalled(home),
     codex: existsSyncSafe(join(home, ".codex")),
     cursor: existsSyncSafe(join(home, ".cursor")),
     grok: existsSyncSafe(join(home, ".grok")),
@@ -165,10 +175,18 @@ function binsOnPath() {
   return found;
 }
 
+export function mergeDetection(dirHits, binHits) {
+  const merged = { ...dirHits };
+  for (const [name, found] of Object.entries(binHits)) {
+    if (found) merged[name] = true;
+  }
+  return merged;
+}
+
 function describeAgents({ home, lookFor, sharedReady, claudeReady, projectReady }) {
   const detected =
     lookFor === undefined
-      ? { ...defaultLookFor(home || homedir()), ...binsOnPath() }
+      ? mergeDetection(defaultLookFor(home || homedir()), binsOnPath())
       : { ...defaultLookFor(home || homedir()), ...lookFor };
   return AGENT_CATALOGUE.map((agent) => {
     const isDetected = Boolean(detected[agent.id]);

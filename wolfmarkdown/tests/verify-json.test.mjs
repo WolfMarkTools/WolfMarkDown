@@ -12,6 +12,7 @@ test("toPublicResult uses pass/fail strings and keeps errors", async () => {
   const json = toPublicResult(result);
   assert.equal(json.ok, false);
   assert.equal(json.checks.whitespace, "fail");
+  assert.equal(json.checks.integrity, "skip");
   assert.equal(typeof json.checks.parse, "string");
   assert.ok(Array.isArray(json.errors));
   assert.ok(json.errors.length > 0);
@@ -32,5 +33,6 @@ test("verify-markdown.mjs --json prints machine-readable output", async () => {
   const body = JSON.parse(ran.stdout);
   assert.equal(body.ok, true);
   assert.equal(body.checks.prettier, "pass");
+  assert.equal(body.checks.integrity, "skip");
   assert.deepEqual(body.errors, []);
 });

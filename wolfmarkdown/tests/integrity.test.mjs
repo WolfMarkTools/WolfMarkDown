@@ -73,6 +73,12 @@ test("reducing duplicate occurrences of the same token still passes", () => {
   assert.equal(compareTokens(before, after).ok, true);
 });
 
+test("extracts Windows drive-letter paths as protected tokens", () => {
+  const tokens = extractTokens("See C:\\Users\\mark\\notes.md and C:/Users/mark/docs/architecture.md.");
+  assert.equal(tokens.has("C:\\Users\\mark\\notes.md"), true);
+  assert.equal(tokens.has("C:/Users/mark/docs/architecture.md"), true);
+});
+
 test("extracts camelCase and snake_case identifiers as exact tokens", () => {
   const tokens = extractTokens("Use apiKey and session_signer in the request.");
   assert.equal(tokens.has("apiKey"), true);

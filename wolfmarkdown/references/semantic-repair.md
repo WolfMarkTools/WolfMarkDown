@@ -46,7 +46,7 @@ Do not promote an isolated short sentence solely because it is short. When bound
 
 ### Tables
 
-Treat consecutive rows as a table candidate when they share a stable column count and use tabs, aligned spacing, delimiters, or repeated field positions. Use the first row as headers when it names dimensions or fields. Preserve every row and cell, including empty cells. Escape literal pipes when required by GFM.
+Treat consecutive rows as a table candidate only when both the column boundaries and a recognisable header row are clear. Evidence may include a stable column count together with tabs, aligned spacing, delimiters, repeated field positions, and a first row that names dimensions or fields. A stable row shape by itself does not prove that the first row is a header. When header intent is not clear, preserve the region as prose or a list and record the ambiguity rather than inventing a schema. Preserve every row and cell, including empty cells. Escape literal pipes when required by GFM.
 
 If row boundaries are clear but one row has fewer cells, leave unknown trailing cells empty. If column boundaries themselves are ambiguous, preserve the source as prose or a list and record the ambiguity; never invent cells.
 

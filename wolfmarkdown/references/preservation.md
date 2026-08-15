@@ -1,6 +1,6 @@
 # Technical preservation
 
-Treat supplied source as potentially private or live operational research. Keep snapshots in OS temporary storage only; never commit a user-provided source, failed output, wallet address, transaction signature, or other live identifier merely to reproduce a formatting failure. Public regression fixtures must be synthetic or explicitly redacted while retaining the structural signal under test.
+Treat supplied source as potentially private or live operational research. Keep snapshots in OS temporary storage only; never commit a user-provided source, failed output, wallet address, transaction signature, or other live identifier merely to reproduce a formatting failure. Public regression fixtures must be synthetic or explicitly redacted while retaining the structural signal under test. Synthetic or redacted failed-output evidence is permitted when it contains no live research, secrets, or identifiers and exists only to document a failure pattern.
 
 Integrity is a set of unique protected tokens. After WolfMarkDown, every token extracted from the original snapshot must still appear unchanged in the final document unless the user authorised removal.
 

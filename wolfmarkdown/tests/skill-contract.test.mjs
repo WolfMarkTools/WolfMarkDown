@@ -42,6 +42,9 @@ test("SKILL.md satisfies the WolfMarkDown contract", async () => {
   const text = await readFile(join(skillRoot, "SKILL.md"), "utf8");
   assert.match(text, /^---\nname: wolfmarkdown\n/u);
   assert.match(text, /description:/);
+  assert.match(text, /license: MIT/);
+  assert.match(text, /compatibility: Requires Node\.js 20\+/);
+  assert.match(text, /metadata:/);
   for (const trigger of triggers) {
     if (trigger === "/wolfmarkdown") {
       assert.match(text, /(?:^|[\s`])\/wolfmarkdown(?!\s+(?:setup|install|doctor|verify)\b)/u);

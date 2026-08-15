@@ -12,6 +12,12 @@ description: >
   write a Markdown file, create a Markdown file, create a .md,
   save this as Markdown, save this as .md, install WolfMarkDown,
   set up WolfMarkDown, or WolfMarkDown doctor.
+license: MIT
+compatibility: Requires Node.js 20+
+metadata:
+  author: WolfMark
+  version: "0.1.0"
+  display-name: WolfMarkDown
 ---
 
 # WolfMarkDown

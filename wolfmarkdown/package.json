@@ -1,0 +1,27 @@
+{
+  "name": "wolfmarkdown",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "WolfMarkDown deterministic Markdown format and verify tooling",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "format": "node scripts/format-markdown.mjs",
+    "verify": "node scripts/verify-markdown.mjs",
+    "install-skill": "node scripts/install.mjs",
+    "doctor": "node scripts/doctor.mjs"
+  },
+  "dependencies": {
+    "markdownlint": "0.41.1",
+    "prettier": "3.9.6",
+    "remark": "15.0.1",
+    "remark-frontmatter": "5.0.0",
+    "remark-gfm": "4.0.1",
+    "unified": "11.0.5",
+    "unist-util-visit": "5.1.0",
+    "yaml": "2.9.0"
+  }
+}

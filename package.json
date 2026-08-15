@@ -1,0 +1,11 @@
+{
+  "name": "wolfmarkdown-repo",
+  "private": true,
+  "description": "Convenience scripts for the WolfMarkDown repository",
+  "scripts": {
+    "test": "npm test --prefix wolfmarkdown",
+    "ci": "npm ci --prefix wolfmarkdown",
+    "install-skill": "node wolfmarkdown/scripts/install.mjs",
+    "doctor": "node wolfmarkdown/scripts/doctor.mjs"
+  }
+}

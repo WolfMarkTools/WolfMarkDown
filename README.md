@@ -9,6 +9,12 @@
   <a href="./LICENSE"><img alt="MIT licence" src="https://img.shields.io/github/license/WolfMarkTools/WolfMarkDown"></a>
   <img alt="Node.js 20+" src="https://img.shields.io/badge/Node.js-20%2B-339933?logo=node.js&logoColor=white">
   <a href="https://github.com/WolfMarkTools/WolfMarkDown/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/WolfMarkTools/WolfMarkDown?style=social"></a>
+<a href="https://coderabbit.ai">
+  <img
+    alt="CodeRabbit Pull Request Reviews"
+    src="https://img.shields.io/coderabbit/prs/github/WolfMarkTools/WolfMarkDown?utm_source=oss&amp;utm_medium=github&amp;utm_campaign=WolfMarkTools%2FWolfMarkDown&amp;labelColor=171717&amp;color=FF570A&amp;label=CodeRabbit+Reviews"
+  >
+</a>
 </p>
 
 AI agents can produce excellent research, documentation, and plans while still leaving behind broken Markdown: malformed tables, inconsistent headings, copied chat scaffolding, unclosed fences, excess whitespace, or accidental changes to technical identifiers.

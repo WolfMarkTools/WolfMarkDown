@@ -23,3 +23,4 @@ Baseline executed 2026-08-15 against the current SKILL.md workflow:
 - existing-target-collision: PASS
 - failure-recovery: PASS
 - negative-discovery: PASS
+- solana-wallet-payment-architecture: structural regression for table, heading, labelled-list, sibling-section, paragraph, and technical-token recovery

@@ -101,7 +101,7 @@ Report PASS or FAIL with the verifier errors.
 1. Read the complete existing file.
 2. Snapshot the original bytes to a unique OS temp file. Do not commit it. Do not overwrite it later.
 3. Classify. Sanitise conversation scaffolding only when appropriate. See [conversation-sanitisation.md](references/conversation-sanitisation.md).
-4. Make the smallest semantic changes needed. Do not rewrite already-good prose. See [wolfmark-markdown-style.md](references/wolfmark-markdown-style.md).
+4. Complete the semantic structure-recovery audit in [wolfmark-markdown-style.md](references/wolfmark-markdown-style.md) before writing the candidate. Do not let a syntactically valid, Prettier-stable document substitute for recovered structure. Make the smallest semantic changes needed and do not rewrite already-good prose.
 5. Write a candidate, format with `format-markdown.mjs`, verify with `--integrity-from` the snapshot.
 6. If verification cannot pass, restore the original file from the snapshot before reporting FAIL. See [compose.md](references/compose.md) for publish/restore rules.
 7. Confirm format `--check`. Report. Delete the temporary snapshot after the report, on both PASS and FAIL. Do not refresh the snapshot from the edited file.
@@ -114,7 +114,7 @@ See [compose.md](references/compose.md) and [preservation.md](references/preserv
 2. Choose the output path: honour an explicit path; otherwise infer a kebab-case `.md` name, using an established `docs/` directory when that convention is obvious, otherwise the current working directory. Do not invent a deep folder tree. Do not keep asking for a filename when one is obvious.
 3. If the target already exists and the user did not clearly authorise replace/update, do not overwrite it.
 4. Compose a standalone document. Derive a concise H1 from the source unless the user asked for a fragment, README section, or insert. Do not add YAML frontmatter unless requested, already present, or required by an obvious repo convention.
-5. Remove chat-only scaffolding and convert conversation-dependent language into document language. Do not fabricate missing context or citation URLs.
+5. Remove chat-only scaffolding and convert conversation-dependent language into document language. Do not fabricate missing context or citation URLs. Apply the semantic structure-recovery audit in [wolfmark-markdown-style.md](references/wolfmark-markdown-style.md); semantic judgement remains agent-owned and deterministic scripts remain proof only.
 6. Write a temp candidate, format, verify against the source snapshot.
 7. Publish to the destination only after PASS. Do not leave an unverified file at the destination. Clean up temps.
 

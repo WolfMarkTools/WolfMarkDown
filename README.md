@@ -1,102 +1,120 @@
 # WolfMarkDown
 
-WolfMarkDown turns messy Markdown and pasted source material into standalone Markdown people can read, review, and commit. It gives an agent a disciplined repair workflow for structure, safety, and proof instead of treating formatting as a final cosmetic pass.
+<!-- markdownlint-disable MD033 -->
 
-Use it when a report, research dump, meeting note, agent response, or comparison matrix needs to become a dependable `.md` file. WolfMarkDown aims for structurally production-ready Markdown when the agent's semantic review and the deterministic checks both pass; the scripts do not certify arbitrary prose structure or underlying content quality.
+<p align="center"><strong>Production-ready Markdown from AI agents — created, cleaned, repaired, and verified.</strong></p>
 
-## Capabilities
+<p align="center">Agent judgement for structure. Deterministic tooling for proof.</p>
 
-- Clean existing Markdown
-- Compose or export a new Markdown file
-- Remove copied-agent conversation scaffolding
-- Repair headings, lists, fences, and comparison tables when source intent is clear
-- Map latent source structure before editing, then reconcile every clear signal before deterministic verification
-- Preserve ambiguity instead of inventing a table schema, heading, list, or claim
-- Maintain a document ledger and semantic handoff when long sources need bounded processing
-- Preserve technical identifiers, URLs, and meaningful citations
-- Format deterministically with Prettier as the sole final printer
-- Validate with markdownlint and GFM checks before publishing
-- Restore the original file if a Clean cannot be verified
-- Avoid publishing failed Compose output
+<p align="center">
+  <a href="https://github.com/WolfMarkTools/WolfMarkDown/releases/latest"><img alt="GitHub release" src="https://img.shields.io/github/v/release/WolfMarkTools/WolfMarkDown"></a>
+  <a href="./LICENSE"><img alt="MIT licence" src="https://img.shields.io/github/license/WolfMarkTools/WolfMarkDown"></a>
+  <img alt="Node.js 20+" src="https://img.shields.io/badge/Node.js-20%2B-339933?logo=node.js&logoColor=white">
+  <a href="https://github.com/WolfMarkTools/WolfMarkDown/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/WolfMarkTools/WolfMarkDown?style=social"></a>
+</p>
 
-WolfMarkDown does not rewrite already-good prose for style, and it does not take over ordinary summaries or notes just because they could be written as Markdown.
+AI agents can produce excellent research, documentation, and plans while still leaving behind broken Markdown: malformed tables, inconsistent headings, copied chat scaffolding, unclosed fences, excess whitespace, or accidental changes to technical identifiers.
 
-## Requirements
+**WolfMarkDown is the output layer between an AI agent and the `.md` file you actually want to keep.**
 
-Node.js 20 or newer is supported, including Node.js 22 and Node.js 24. Both the repository package and the WolfMarkDown runtime package declare `engines.node` as `>=20`.
+It combines semantic agent judgement with deterministic formatting, linting, parsing, integrity checks, idempotence checks, and failure-safe publishing.
 
-## Compatibility
+WolfMarkDown supports Node.js 20 or newer, including Node.js 22 and Node.js 24.
 
-WolfMarkDown is model-agnostic. The same skill works with any agent host that can load Agent Skills from `.agents/skills/wolfmarkdown` or the Claude Code compatibility location `.claude/skills/wolfmarkdown`.
-
-Examples include Codex, Cursor, Grok Build, Claude Code, OpenCode, Gemini CLI, Antigravity, and GitHub Copilot when their host enables the relevant Agent Skills discovery convention. It is one portable implementation, not a model-specific prompt or a set of vendor forks.
-
-Slash-style `/wolfmarkdown` is harness-specific. Natural-language invocation works wherever the host loads the skill. The host model determines the quality of semantic judgement; WolfMarkDown supplies the same workflow, preservation rules, and deterministic checks across compatible hosts.
-
-## Installation
-
-The Agent Skills directory name must match `wolfmarkdown`, so the implementation lives in `wolfmarkdown/` rather than the repository root. `skills-ref validate` rejects a root-level `SKILL.md` because this repository is named `WolfMarkDown`.
-
-For repository development or a fresh checkout:
+## Install in one command
 
 ```bash
-npm ci --prefix wolfmarkdown
-node wolfmarkdown/scripts/install.mjs
+npx skills add WolfMarkTools/WolfMarkDown --skill wolfmarkdown
 ```
 
-Normal `/wolfmarkdown setup` uses the same installer after its health check and does not reinstall dependencies that are already healthy.
+Choose the agents and installation scope when prompted. WolfMarkDown follows the open Agent Skills model and uses one canonical implementation across compatible harnesses.
 
-From the repository root, `npm test` delegates to that directory.
+> If WolfMarkDown saves you from manually fixing AI-generated Markdown, consider [starring the repository](https://github.com/WolfMarkTools/WolfMarkDown). Stars help other agent users discover it.
 
-The installer command:
+## Why WolfMarkDown?
 
-- installs runtime dependencies if needed
-- links `~/.agents/skills/wolfmarkdown` for shared Agent Skills discovery
-- links `~/.claude/skills/wolfmarkdown` for Claude Code
+Prettier is an excellent Markdown printer. WolfMarkDown solves the parts that a printer cannot.
 
-On Windows it uses a directory junction when a symlink cannot be created. It does not copy the skill tree.
+| Capability | Prettier alone | WolfMarkDown |
+| --- | :-: | :-: |
+| Deterministic Markdown formatting | Yes | Yes |
+| Repair semantic document structure | No | Yes |
+| Remove copied AI conversation scaffolding | No | Yes |
+| Rebuild malformed comparison tables | No | Yes |
+| Protect URLs, code, hashes, versions, and identifiers | No | Yes |
+| Verify GFM parsing and fence balance | No | Yes |
+| Run markdownlint before publishing | No | Yes |
+| Check idempotence | No | Yes |
+| Restore the original after a failed Clean | No | Yes |
+| Refuse to publish a failed Compose | No | Yes |
 
-Inside this checkout, `.agents/skills/wolfmarkdown` points at `wolfmarkdown/` so the skill is discoverable before a global install.
+WolfMarkDown does not rewrite already-good prose just to make it sound different. The goal is **minimum necessary semantic cleanup with deterministic proof that the result is safe to keep**.
 
-A harness may need a reload after setup.
+## What it does
 
-## Usage
+| Operation | What WolfMarkDown does |
+| --- | --- |
+| **Compose** | Creates a real `.md` file from source material, removes chat-only scaffolding, formats it, verifies it, then publishes it only after PASS. |
+| **Clean** | Repairs an existing Markdown file with the smallest necessary semantic changes and restores the original if verification fails. |
+| **Verify** | Checks Markdown without changing it. |
+| **Doctor** | Inspects runtime dependencies and skill discovery without mutating the install. |
+| **Setup** | Repairs runtime dependencies only when needed and configures shared skill discovery. |
 
-Portable:
+### Typical cleanup targets
+
+- heading hierarchy
+- malformed or inconsistent lists
+- broken GFM tables
+- unclosed code fences
+- excessive whitespace
+- copied agent commentary such as “Here is the cleaned version”
+- conversation-dependent wording that does not belong in a standalone document
+- decorative noise that should not survive into production documentation
+
+## Built to preserve the details that matter
+
+Markdown cleanup is only useful if it does not silently damage technical content.
+
+WolfMarkDown protects and verifies technical tokens including:
+
+- URLs
+- inline and fenced code
+- Solana public keys and signatures
+- long hexadecimal hashes
+- semantic versions such as `1.2.3`, `v1.2.3`, prereleases, and build metadata
+- filesystem paths
+- contextual environment variables
+- dates
+- percentages
+- currency values
+
+Integrity is checked against the original source before a changed file is accepted.
+
+## How it works
 
 ```text
-Use WolfMarkDown on docs/architecture.md.
-Export this research as Markdown using WolfMarkDown.
-Save this as docs/research/wallet-analysis.md.
-Verify docs/architecture.md with WolfMarkDown.
-Set up WolfMarkDown.
+User intent
+    ↓
+Agent semantic judgement
+    ↓
+Prettier
+    ↓
+markdownlint + GFM parse + source-aware fence checks
+    ↓
+Protected-token integrity
+    ↓
+Idempotence
+    ↓
+PASS → publish
+FAIL → restore / do not publish
 ```
 
-Where slash commands exist:
+The split is deliberate:
 
-```text
-/wolfmarkdown setup
-/wolfmarkdown doctor
-/wolfmarkdown docs/architecture.md
-/wolfmarkdown verify docs/architecture.md
-```
+- **The agent owns judgement** — intent, semantic structure, conversation sanitisation, table repair, and whether something is decorative or meaningful.
+- **The scripts own proof** — formatting, linting, parsing, fence balance, protected-token integrity, idempotence, installation, and Doctor checks.
 
-Developer commands from this repository:
-
-```bash
-node wolfmarkdown/scripts/doctor.mjs
-node wolfmarkdown/scripts/format-markdown.mjs path/to/file.md
-node wolfmarkdown/scripts/verify-markdown.mjs path/to/file.md
-node wolfmarkdown/scripts/verify-markdown.mjs path/to/file.md --json
-```
-
-## Architecture
-
-The agent owns judgement: intent, conversation sanitisation, decorative versus substantive emoji, structure, and composition. Clean and Compose use a two-pass workflow: map source boundaries, tables, labelled groups, sequences, paragraphs, and protected regions; then reconcile the candidate against that map. A deterministic pass does not make flattened or semantically poor prose production-ready.
-
-Scripts own deterministic proof: GFM parse, Prettier, markdownlint, fence balance, frontmatter, protected-token integrity, idempotence, install, and doctor.
-
-Prettier is the only final printer.
+Prettier is the sole final printer.
 
 ## Semantic repair
 
@@ -106,9 +124,150 @@ For long documents, the agent maintains an internal document ledger and semantic
 
 ## Quality boundary
 
-WolfMarkDown can establish source-grounded structure and verified Markdown properties. It does not fact-check claims, establish completeness or currency, assess policy compliance, or authorise public release. A WolfMarkDown PASS is Markdown-quality evidence, not content approval.
+A WolfMarkDown PASS is source-grounded evidence of structurally production-ready Markdown. It is Markdown-quality evidence, not content approval. It does not fact-check claims, establish completeness or currency, assess policy compliance, or authorise publication. Deterministic verification does not certify arbitrary prose; semantic judgement remains agent-owned.
 
-## Development
+## Use it
+
+### Clean an existing document
+
+```text
+Use WolfMarkDown on docs/architecture.md.
+```
+
+### Compose a new Markdown file
+
+```text
+Export this research as Markdown using WolfMarkDown.
+```
+
+```text
+Save this as docs/research/wallet-analysis.md using WolfMarkDown.
+```
+
+### Verify without changing anything
+
+```text
+Verify docs/architecture.md with WolfMarkDown.
+```
+
+### Check the installation
+
+```text
+Run WolfMarkDown doctor.
+```
+
+Where a harness exposes Agent Skills as slash commands, WolfMarkDown can also be invoked as `/wolfmarkdown`.
+
+```text
+/wolfmarkdown setup
+/wolfmarkdown doctor
+/wolfmarkdown docs/architecture.md
+/wolfmarkdown verify docs/architecture.md
+```
+
+Slash-command presentation is harness-specific; natural-language invocation remains portable.
+
+## Verification evidence
+
+WolfMarkDown was released with both deterministic and agent-level verification rather than relying on example screenshots alone.
+
+### WolfMarkDown v0.1.x
+
+- **51/51 Node tests passed**
+- **15/15 semantic evals passed**
+- `skills-ref validate ./wolfmarkdown` — **Valid skill**
+- installer idempotence — **PASS**
+- Doctor checks — **PASS**
+- protected-token integrity — **PASS**
+- failure rollback — **PASS**
+- discovery-link handling — **PASS**
+- public remote install through `npx skills` — **verified**
+- Claude Code global installation — **verified**
+
+### GitHub Awesome Copilot external-plugin intake
+
+The `v0.1.1` Agent Plugins package passed GitHub Awesome Copilot's automated external-plugin intake:
+
+- Agent Plugins v1 spec compliance — **PASS**
+- Vally lint — **PASS**
+- skill file-reference validation — **PASS**
+- Copilot plugin install smoke test — **PASS**
+- version match — **PASS**
+- immutable ref/SHA consistency — **PASS**
+
+The submission is currently awaiting maintainer review in [github/awesome-copilot#2676](https://github.com/github/awesome-copilot/issues/2676).
+
+## Compatibility
+
+WolfMarkDown is model-agnostic. The same skill works with any agent host that can load Agent Skills from `.agents/skills/wolfmarkdown` or the Claude Code compatibility location `.claude/skills/wolfmarkdown`.
+
+Examples include Codex, Cursor, Grok Build, Claude Code, OpenCode, Gemini CLI, Antigravity, and GitHub Copilot when their host enables the relevant Agent Skills discovery convention. It is one portable implementation, not a model-specific prompt or a set of vendor forks.
+
+Slash-style `/wolfmarkdown` is harness-specific. Natural-language invocation works wherever the host loads the skill. The host model determines the quality of semantic judgement; WolfMarkDown supplies the workflow, preservation rules, and deterministic checks across compatible hosts.
+
+The [`skills` CLI](https://github.com/vercel-labs/skills) can install Agent Skills across a broad set of supported agent harnesses.
+
+## Installation details
+
+### Recommended: `skills` CLI
+
+Interactive install:
+
+```bash
+npx skills add WolfMarkTools/WolfMarkDown --skill wolfmarkdown
+```
+
+Example non-interactive Claude Code install:
+
+```bash
+npx skills add WolfMarkTools/WolfMarkDown \
+  --skill wolfmarkdown \
+  -g \
+  -a claude-code \
+  -y
+```
+
+### From a repository checkout
+
+```bash
+npm ci --prefix wolfmarkdown
+node wolfmarkdown/scripts/install.mjs
+```
+
+The installer:
+
+- installs or repairs runtime dependencies only when needed
+- configures shared `~/.agents/skills/wolfmarkdown` discovery
+- configures the Claude Code compatibility path at `~/.claude/skills/wolfmarkdown`
+- uses a directory junction on Windows when appropriate
+- refuses to overwrite unrelated foreign paths
+
+Inside this repository, `.agents/skills/wolfmarkdown` points to the canonical `wolfmarkdown/` directory.
+
+The Agent Plugins package follows the same principle: `skills/wolfmarkdown` points back to the same canonical implementation rather than maintaining a second copy.
+
+## Architecture
+
+```text
+WolfMarkDown/
+├── plugin.json
+├── .agents/
+│   └── skills/
+│       └── wolfmarkdown → ../../wolfmarkdown
+├── skills/
+│   └── wolfmarkdown → ../wolfmarkdown
+└── wolfmarkdown/
+    ├── SKILL.md
+    ├── config/
+    ├── lib/
+    ├── references/
+    ├── scripts/
+    └── tests/
+```
+
+The machine skill ID and filesystem directory are intentionally lowercase `wolfmarkdown`; the product name is **WolfMarkDown**.
+
+## Developer commands
 
 ```bash
 npm ci --prefix wolfmarkdown
@@ -116,26 +275,47 @@ npm test
 npx --yes skills-ref validate ./wolfmarkdown
 ```
 
-For installation through the published Agent Skills CLI, use:
+Useful direct commands:
 
 ```bash
-npx skills add WolfMarkTools/WolfMarkDown --skill wolfmarkdown
+node wolfmarkdown/scripts/doctor.mjs
+node wolfmarkdown/scripts/format-markdown.mjs path/to/file.md
+node wolfmarkdown/scripts/verify-markdown.mjs path/to/file.md
+node wolfmarkdown/scripts/verify-markdown.mjs path/to/file.md --json
 ```
 
 Semantic cases live in `wolfmarkdown/tests/evals/`. Cross-agent acceptance inputs live in `wolfmarkdown/tests/acceptance/`.
 
-The Node suite protects the deterministic tooling and skill contract. Semantic evals are agent-executed structural rubrics: they assess whether an agent recovered or conservatively preserved the source structure, rather than comparing a brittle full-document snapshot.
+The Node suite protects the deterministic tooling and skill contract. Semantic evals are agent-executed structural rubrics: they assess whether an agent recovered or conservatively preserved source structure, rather than comparing a brittle full-document snapshot.
 
-## Limitations
+## Current boundaries
 
-- `/wolfmarkdown setup` only works after the skill is already discoverable.
+- `/wolfmarkdown setup` only works after the skill is discoverable by the agent.
 - `--mode` is not supported.
-- Vendor-specific skill copies are not created.
-- Windows still needs permission to create a junction or symlink.
-- Semantic sanitisation remains agent-judged.
+- vendor-specific behavioural forks are intentionally not created.
+- Windows requires permission to create the appropriate discovery link or junction.
+- semantic sanitisation remains agent-judged by design.
 - The verifier proves Markdown and content-integrity properties; it does not understand arbitrary prose or certify recovered semantic structure.
 - Long-document repair depends on the agent retaining and reconciling its document ledger; incomplete source review must be reported rather than guessed.
 
+## Contributing
+
+Found a Markdown edge case WolfMarkDown should handle better? [Open an issue](https://github.com/WolfMarkTools/WolfMarkDown/issues).
+
+Pull requests are welcome, especially for:
+
+- reproducible Markdown failure cases
+- integrity edge cases
+- cross-platform installation issues
+- additional agent-harness acceptance evidence
+- focused improvements that preserve the single-implementation architecture
+
 ## Licence
 
-[MIT](./LICENSE)
+WolfMarkDown is available under the [MIT Licence](./LICENSE).
+
+---
+
+<p align="center"><strong>Less cleanup after the agent. More Markdown you can ship.</strong></p>
+
+<p align="center">If that sounds useful, <a href="https://github.com/WolfMarkTools/WolfMarkDown">star WolfMarkDown on GitHub</a> and help other agent users find it.</p>

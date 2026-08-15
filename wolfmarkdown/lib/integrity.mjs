@@ -13,6 +13,8 @@ const CURRENCY_RE = /[\$£€]\d+(?:\.\d{2})?/g;
 const ENV_SCOPED_RE = /\$\{([A-Z][A-Z0-9_]{2,})\}|\$([A-Z][A-Z0-9_]{2,})\b/g;
 const ENV_ASSIGN_RE = /\b([A-Z][A-Z0-9]*_[A-Z0-9_]+)=/g;
 const ENV_NAME_RE = /\b[A-Z][A-Z0-9]*_[A-Z0-9_]+\b/g;
+const CAMEL_IDENT_RE = /\b[a-z][a-zA-Z0-9]*[A-Z][a-zA-Z0-9]*\b/g;
+const SNAKE_IDENT_RE = /\b[a-z]+(?:_[a-z0-9]+)+\b/g;
 const HOME_OR_REL_PATH_RE = /(?:~|\.{1,2})\/[^\s)`'"]+/g;
 const ABS_PATH_RE = /(?:^|[\s(`])(\/(?:[A-Za-z0-9._-]+\/)+[A-Za-z0-9._-]+)/g;
 
@@ -38,6 +40,8 @@ export function extractFromText(text, tokens = new Set()) {
   addAll(text, ENV_SCOPED_RE, tokens, (match) => match[1] || match[2]);
   addAll(text, ENV_ASSIGN_RE, tokens, (match) => match[1]);
   addAll(text, ENV_NAME_RE, tokens);
+  addAll(text, CAMEL_IDENT_RE, tokens);
+  addAll(text, SNAKE_IDENT_RE, tokens);
   return tokens;
 }
 
@@ -63,12 +67,9 @@ export function extractTokens(text) {
 
 export function compareTokens(before, after) {
   const afterSet = after instanceof Set ? after : extractTokens(after);
-  const afterText = typeof after === "string" ? after : null;
   const missing = [];
   for (const token of before) {
-    if (afterSet.has(token)) continue;
-    if (afterText && afterText.includes(token)) continue;
-    missing.push(token);
+    if (!afterSet.has(token)) missing.push(token);
   }
   return { missing, ok: missing.length === 0 };
 }

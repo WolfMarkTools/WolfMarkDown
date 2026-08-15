@@ -11,10 +11,11 @@ Do not require all eight locally. Use the same inputs when a harness is availabl
 ## How to run
 
 1. Open this WolfMarkDown repository so `.agents/skills/wolfmarkdown` is discoverable, or install with `node wolfmarkdown/scripts/install.mjs`.
-2. Give the agent the input and the user request.
-3. Require a real `.md` file when the request is compose or clean.
-4. Run `node wolfmarkdown/scripts/verify-markdown.mjs <output> --integrity-from <source-snapshot>`.
-5. Score the invariants below.
+2. Copy the real Markdown input to an immutable snapshot before the agent edits anything. Keep that snapshot unchanged.
+3. Give the agent the input and the user request.
+4. Require a real `.md` file when the request is compose or clean.
+5. Run `node wolfmarkdown/scripts/verify-markdown.mjs <output> --integrity-from <source-snapshot>` using the snapshot from step 2, not the overwritten working file.
+6. Score the invariants below.
 
 ## 1. Ugly AI research
 

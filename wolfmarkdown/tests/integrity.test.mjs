@@ -73,6 +73,23 @@ test("reducing duplicate occurrences of the same token still passes", () => {
   assert.equal(compareTokens(before, after).ok, true);
 });
 
+test("extracts camelCase and snake_case identifiers as exact tokens", () => {
+  const tokens = extractTokens("Use apiKey and session_signer in the request.");
+  assert.equal(tokens.has("apiKey"), true);
+  assert.equal(tokens.has("session_signer"), true);
+});
+
+test("prefix or suffix on an identifier is not the same token", () => {
+  const before = extractTokens("The field is apiKey.");
+  assert.equal(compareTokens(before, "The field is apiKey.").ok, true);
+  const prefixed = compareTokens(before, "The field is apiKeyName.");
+  const suffixed = compareTokens(before, "The field is myapiKey.");
+  assert.equal(prefixed.ok, false);
+  assert.ok(prefixed.missing.includes("apiKey"));
+  assert.equal(suffixed.ok, false);
+  assert.ok(suffixed.missing.includes("apiKey"));
+});
+
 test("formatting the technical fixture does not drop protected tokens", async () => {
   const original = await readFixture("technical-content.md");
   const formatted = await formatMarkdown(original);

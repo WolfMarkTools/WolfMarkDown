@@ -11,8 +11,8 @@ export function parseFlags(args, allowed) {
     if (arg === "--mode") {
       throw new Error("--mode is not supported in v1.");
     }
-    if (arg.startsWith("--")) {
-      if (!allowed.includes(arg)) {
+    if (arg.startsWith("-") && arg !== "-h") {
+      if (!arg.startsWith("--") || !allowed.includes(arg)) {
         throw new Error(`Unknown flag: ${arg}`);
       }
       if (arg === "--integrity-from") {

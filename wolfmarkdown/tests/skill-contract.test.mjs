@@ -43,6 +43,10 @@ test("SKILL.md satisfies the WolfMarkDown contract", async () => {
   assert.match(text, /^---\nname: wolfmarkdown\n/u);
   assert.match(text, /description:/);
   for (const trigger of triggers) {
+    if (trigger === "/wolfmarkdown") {
+      assert.match(text, /(?:^|[\s`])\/wolfmarkdown(?!\s+(?:setup|install|doctor|verify)\b)/u);
+      continue;
+    }
     assert.ok(text.includes(trigger), `missing trigger ${trigger}`);
   }
   assert.match(text, /snapshot/i);

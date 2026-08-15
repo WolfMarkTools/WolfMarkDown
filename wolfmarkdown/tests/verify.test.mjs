@@ -1,12 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { formatMarkdown } from "../lib/format.mjs";
-import { verifyMarkdown } from "../lib/validate.mjs";
+import { cells, verifyMarkdown } from "../lib/validate.mjs";
 import { readFixture } from "./helpers.mjs";
 
 test("already-clean formatted Markdown passes verification", async () => {
   const formatted = await formatMarkdown(await readFixture("already-clean.md"));
   const result = await verifyMarkdown(formatted);
+  assert.equal(result.ok, true, result.errors.join("\n"));
+});
+
+test("escaped pipes inside table cells do not change the cell count", async () => {
+  assert.deepEqual(cells("| a \\| b | ok |"), ["a \\| b", "ok"]);
+  const markdown = ["# Title", "", "| Name | Value |", "| --- | --- |", "| a \\| b | ok |", ""].join("\n");
+  const result = await verifyMarkdown(await formatMarkdown(markdown));
   assert.equal(result.ok, true, result.errors.join("\n"));
 });
 

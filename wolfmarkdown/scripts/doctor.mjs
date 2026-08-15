@@ -21,7 +21,7 @@ async function main(argv) {
   } else {
     const pass = (ok) => (ok ? "Pass" : "Fail");
     const agentLines = (health.agents ?? []).map((agent) => {
-      const bits = ["Compatible"];
+      const bits = [agent.acceptance === "pending" ? "Standard-compatible / Acceptance pending" : "Compatible"];
       bits.push(agent.detected ? "Detected" : "Not detected");
       if (agent.discoveryReady) bits.push("Ready");
       else if (agent.status === "Optional compatibility link missing") bits.push(agent.status);

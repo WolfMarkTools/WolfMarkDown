@@ -1,4 +1,4 @@
-import { access, mkdir, writeFile } from "node:fs/promises";
+import { access, mkdir, open, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 
 export async function restoreOriginal(path, originalText) {
@@ -31,6 +31,22 @@ export async function publishNewFile(dest, candidateText, verify, { replace = fa
     return { ok: false, errors: result.errors ?? ["Verification failed."] };
   }
   await mkdir(dirname(dest), { recursive: true });
-  await writeFile(dest, candidateText);
+  if (replace) {
+    await writeFile(dest, candidateText);
+    return { ok: true };
+  }
+  try {
+    const handle = await open(dest, "wx");
+    try {
+      await handle.writeFile(candidateText);
+    } finally {
+      await handle.close();
+    }
+  } catch (error) {
+    if (error?.code === "EEXIST") {
+      throw new Error(`Destination exists and replacement was not authorised: ${dest}`);
+    }
+    throw error;
+  }
   return { ok: true };
 }

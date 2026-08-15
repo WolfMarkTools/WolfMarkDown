@@ -117,14 +117,14 @@ export async function inspectHealth({
 }
 
 const AGENT_CATALOGUE = [
-  { id: "codex", name: "Codex", tier: 1, discovery: "shared" },
-  { id: "cursor", name: "Cursor", tier: 1, discovery: "shared" },
-  { id: "grok", name: "Grok Build", tier: 1, discovery: "shared" },
-  { id: "claude", name: "Claude Code", tier: 1, discovery: "claude" },
-  { id: "opencode", name: "OpenCode", tier: 1, discovery: "shared" },
-  { id: "gemini", name: "Gemini CLI", tier: 1, discovery: "shared" },
-  { id: "antigravity", name: "Antigravity", tier: 1, discovery: "project-shared" },
-  { id: "copilot", name: "GitHub Copilot", tier: 2, discovery: "shared" },
+  { id: "codex", name: "Codex", tier: 1, discovery: "shared", acceptance: "tested" },
+  { id: "cursor", name: "Cursor", tier: 1, discovery: "shared", acceptance: "tested" },
+  { id: "grok", name: "Grok Build", tier: 1, discovery: "shared", acceptance: "tested" },
+  { id: "claude", name: "Claude Code", tier: 1, discovery: "claude", acceptance: "tested" },
+  { id: "opencode", name: "OpenCode", tier: 1, discovery: "shared", acceptance: "pending" },
+  { id: "gemini", name: "Gemini CLI", tier: 1, discovery: "shared", acceptance: "pending" },
+  { id: "antigravity", name: "Antigravity", tier: 1, discovery: "project-shared", acceptance: "pending" },
+  { id: "copilot", name: "GitHub Copilot", tier: 2, discovery: "shared", acceptance: "pending" },
 ];
 
 function defaultLookFor(home) {
@@ -150,13 +150,17 @@ function existsSyncSafe(path) {
   }
 }
 
+export function candidateBinaries(name, platform = process.platform) {
+  const names = [name, `${name}.exe`];
+  if (platform === "win32") names.push(`${name}.cmd`, `${name}.bat`);
+  return names;
+}
+
 function binsOnPath() {
   const found = {};
   const parts = (process.env.PATH || "").split(delimiter);
   for (const name of ["claude", "codex", "cursor", "grok", "opencode", "gemini", "copilot"]) {
-    found[name] = parts.some(
-      (dir) => existsSyncSafe(join(dir, name)) || existsSyncSafe(join(dir, `${name}.exe`)),
-    );
+    found[name] = parts.some((dir) => candidateBinaries(name).some((bin) => existsSyncSafe(join(dir, bin))));
   }
   return found;
 }
@@ -182,6 +186,7 @@ function describeAgents({ home, lookFor, sharedReady, claudeReady, projectReady 
       name: agent.name,
       tier: agent.tier,
       compatible: true,
+      acceptance: agent.acceptance,
       detected: isDetected,
       discoveryReady,
       status,

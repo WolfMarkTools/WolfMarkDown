@@ -64,6 +64,7 @@ export async function checkInstall({ home, canonicalDir }) {
   for (const target of discoveryTargets(home)) {
     const { existing, owned } = await ownedLink(target.destination, canonicalDir);
     links[target.id] = Boolean(owned);
+    if (!target.required) continue;
     if (!existing) {
       errors.push(`Missing ${target.id} discovery link at ${target.destination}.`);
     } else if (!owned) {

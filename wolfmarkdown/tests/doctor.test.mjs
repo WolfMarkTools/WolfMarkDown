@@ -95,11 +95,15 @@ test("absent optional agents are compatible but not detected", async () => {
     assert.equal(health.ok, true);
     const copilot = health.agents.find((agent) => agent.id === "copilot");
     assert.equal(copilot.compatible, true);
+    assert.equal(copilot.acceptance, "pending");
     assert.equal(copilot.detected, false);
     assert.equal(copilot.tier, 2);
     const antigravity = health.agents.find((agent) => agent.id === "antigravity");
     assert.equal(antigravity.compatible, true);
+    assert.equal(antigravity.acceptance, "pending");
     assert.equal(antigravity.tier, 1);
+    const grok = health.agents.find((agent) => agent.id === "grok");
+    assert.equal(grok.acceptance, "tested");
   });
 });
 

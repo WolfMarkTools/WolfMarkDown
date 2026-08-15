@@ -9,11 +9,32 @@ import { loadMarkdownlintConfig } from "./paths.mjs";
 
 const DELIMITER = /^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)+\|?\s*$/;
 
-function cells(line) {
+function splitUnescapedPipes(text) {
+  const parts = [];
+  let current = "";
+  for (let index = 0; index < text.length; index += 1) {
+    if (text[index] !== "|") {
+      current += text[index];
+      continue;
+    }
+    let slashes = 0;
+    for (let cursor = index - 1; cursor >= 0 && text[cursor] === "\\"; cursor -= 1) slashes += 1;
+    if (slashes % 2 === 1) {
+      current += "|";
+      continue;
+    }
+    parts.push(current);
+    current = "";
+  }
+  parts.push(current);
+  return parts;
+}
+
+export function cells(line) {
   const trimmed = line.trim();
   const inner = trimmed.startsWith("|") ? trimmed.slice(1) : trimmed;
   const withoutEnd = inner.endsWith("|") ? inner.slice(0, -1) : inner;
-  return withoutEnd.split("|").map((cell) => cell.trim());
+  return splitUnescapedPipes(withoutEnd).map((cell) => cell.trim());
 }
 
 function sourceTableErrors(text) {

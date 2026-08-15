@@ -28,9 +28,9 @@ One implementation. Agent-specific paths are discovery links only.
 | Cursor | Tier 1 | Shared Agent Skills | Standard-compatible; `~/.cursor` detected |
 | Grok Build | Tier 1 | Shared Agent Skills | Tested in this repository |
 | Claude Code | Tier 1 | Claude compatibility link | Standard-compatible; `claude` detected |
-| OpenCode | Tier 1 | Shared Agent Skills | Standard-compatible; `opencode` detected |
-| Gemini CLI | Tier 1 | Shared Agent Skills | Standard-compatible; `gemini` detected |
-| Antigravity | Tier 1 | Project/shared Agent Skills | Standard-compatible; no extra global path required |
+| OpenCode | Tier 1 | Shared Agent Skills | Standard-compatible; acceptance pending |
+| Gemini CLI | Tier 1 | Shared Agent Skills | Standard-compatible; acceptance pending |
+| Antigravity | Tier 1 | Project/shared Agent Skills | Standard-compatible; acceptance pending |
 | GitHub Copilot | Tier 2 | Shared Agent Skills | Standard-compatible; not acceptance-tested |
 
 Slash-style `/wolfmarkdown` is harness-specific (Grok, sometimes Claude). Other agents should be invoked in natural language.

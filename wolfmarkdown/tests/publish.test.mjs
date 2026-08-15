@@ -41,6 +41,25 @@ test("existing unrelated file is not overwritten without authorisation", async (
   await rm(dir, { recursive: true, force: true });
 });
 
+test("exclusive create writes a new destination", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-exclusive-"));
+  const dest = join(dir, "new.md");
+  const outcome = await publishNewFile(dest, "# New\n", async () => ({ ok: true }));
+  assert.equal(outcome.ok, true);
+  assert.equal(await readFile(dest, "utf8"), "# New\n");
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("replace authorises overwrite of an existing destination", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-replace-"));
+  const dest = join(dir, "existing.md");
+  await writeFile(dest, "# Unrelated\n");
+  const outcome = await publishNewFile(dest, "# Replacement\n", async () => ({ ok: true }), { replace: true });
+  assert.equal(outcome.ok, true);
+  assert.equal(await readFile(dest, "utf8"), "# Replacement\n");
+  await rm(dir, { recursive: true, force: true });
+});
+
 test("restoreOriginal writes the snapshot bytes back", async () => {
   const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-restore-"));
   const target = join(dir, "doc.md");

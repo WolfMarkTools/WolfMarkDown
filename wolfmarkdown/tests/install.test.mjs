@@ -4,8 +4,8 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { defaultDestination, installSkill, linkTypeFor, pathsPointAtSameDir, uninstallSkill } from "../lib/install-targets.mjs";
-import { inspectHealth } from "../lib/doctor.mjs";
+import { checkInstall, defaultDestination, installSkill, linkTypeFor, pathsPointAtSameDir, uninstallSkill } from "../lib/install-targets.mjs";
+import { candidateBinaries, inspectHealth } from "../lib/doctor.mjs";
 import { skillRoot } from "./helpers.mjs";
 
 async function withHome(run) {
@@ -94,6 +94,23 @@ test("linkTypeFor uses a directory junction on win32 only", () => {
 
 test("pathsPointAtSameDir compares resolved locations", () => {
   assert.equal(pathsPointAtSameDir(skillRoot, join(skillRoot, ".")), true);
+});
+
+test("checkInstall succeeds when only the required shared link exists", async () => {
+  await withHome(async (home) => {
+    const shared = join(home, ".agents", "skills", "wolfmarkdown");
+    await mkdir(join(home, ".agents", "skills"), { recursive: true });
+    await symlink(skillRoot, shared);
+    const result = await checkInstall({ home, canonicalDir: skillRoot });
+    assert.equal(result.ok, true, result.errors.join("\n"));
+    assert.equal(result.links.shared, true);
+    assert.equal(result.links.claude, false);
+  });
+});
+
+test("Windows binary detection includes cmd and bat shims", () => {
+  assert.deepEqual(candidateBinaries("claude", "win32"), ["claude", "claude.exe", "claude.cmd", "claude.bat"]);
+  assert.deepEqual(candidateBinaries("claude", "darwin"), ["claude", "claude.exe"]);
 });
 
 test("install refuses to overwrite a real directory", async () => {

@@ -4,6 +4,8 @@
 
 > An agent publishing workflow for turning messy AI output into professional Markdown that is ready to review and keep.
 
+Agent judgement for structure. Deterministic tooling for proof.
+
 <p align="center">
   <a href="https://github.com/WolfMarkTools/WolfMarkDown/releases/latest"><img alt="GitHub release" src="https://img.shields.io/github/v/release/WolfMarkTools/WolfMarkDown"></a>
   <a href="./LICENSE"><img alt="MIT licence" src="https://img.shields.io/github/license/WolfMarkTools/WolfMarkDown"></a>
@@ -27,6 +29,21 @@ Prettier is an excellent Markdown printer. It cannot decide whether a flattened 
 
 WolfMarkDown makes those decisions explicit and conservative. It repairs clear structure, preserves genuinely ambiguous material, and reports what was recovered. It does not fact-check the source or approve publication.
 
+| Capability | Prettier alone | WolfMarkDown |
+| --- | :-: | :-: |
+| Deterministic Markdown formatting | Yes | Yes |
+| Repair semantic document structure | No | Yes |
+| Remove copied AI conversation scaffolding | No | Yes |
+| Rebuild malformed comparison tables | No | Yes |
+| Protect URLs, code, hashes, versions, and identifiers | No | Yes |
+| Verify GFM parsing and fence balance | No | Yes |
+| Run markdownlint before publishing | No | Yes |
+| Check idempotence | No | Yes |
+| Restore the original after failed Clean | No | Yes |
+| Refuse to publish failed Compose | No | Yes |
+
+WolfMarkDown does not rewrite already-good prose just to make it sound different. The goal is minimum necessary semantic cleanup with deterministic proof that the result is safe to keep.
+
 ## Install
 
 ```bash
@@ -39,6 +56,18 @@ The `skills` CLI installs the canonical `wolfmarkdown/` skill for the selected A
 npm ci --prefix wolfmarkdown
 node wolfmarkdown/scripts/install.mjs
 ```
+
+For a non-interactive Claude Code install:
+
+```bash
+npx skills add WolfMarkTools/WolfMarkDown \
+  --skill wolfmarkdown \
+  -g \
+  -a claude-code \
+  -y
+```
+
+The installer repairs runtime dependencies only when needed, configures shared `.agents/skills/wolfmarkdown` discovery, configures the Claude Code compatibility path, uses a directory junction on Windows when appropriate, and refuses to overwrite unrelated paths.
 
 ## Quick usage
 
@@ -62,6 +91,18 @@ Where a host exposes slash commands, the same workflow may be invoked as:
 ```
 
 Natural-language invocation is the portable interface. Slash-command presentation is host-specific.
+
+### Operations
+
+| Operation | What WolfMarkDown does |
+| --- | --- |
+| **Compose** | Creates a real `.md` file from source material, removes chat-only scaffolding, formats it, verifies it, and publishes only after PASS. |
+| **Clean** | Repairs an existing Markdown file with the smallest necessary semantic changes and restores the original if verification fails. |
+| **Verify** | Checks Markdown without changing it. |
+| **Doctor** | Inspects runtime dependencies and skill discovery without mutating the install. |
+| **Setup** | Repairs runtime dependencies only when needed and configures shared skill discovery. |
+
+Typical cleanup targets include heading hierarchy, malformed lists, broken GFM tables, unclosed code fences, copied agent commentary, conversation-dependent wording, and decorative noise that should not survive into documentation.
 
 ## Before and after
 
@@ -98,7 +139,7 @@ The output recovers a table and headings, preserves the technical identifiers, a
 
 ## Supported-agent integration status
 
-The skill has one canonical implementation. The table distinguishes repository-tested discovery paths from host acceptance that still needs a dedicated smoke test.
+WolfMarkDown has one canonical implementation. The table distinguishes repository-tested discovery paths from host acceptance that still needs a dedicated smoke test.
 
 | Host | Integration status | Discovery path |
 | --- | --- | --- |
@@ -135,6 +176,10 @@ PASS → keep or publish     FAIL → restore or do not publish
 
 Before formatting, the agent checks for flattened semantic structure. A document can be valid Markdown and still be a failed transformation if it lost tables, headings, lists, or relationships.
 
+### Semantic repair boundary
+
+The agent reconstructs headings, lists, tables, paragraphs, and sibling sections only when the source makes the structure clear. A headerless tab run is not automatically a table, a short sentence is not automatically a heading, and an isolated `Label: value` phrase is not automatically a list item. For long documents, the agent maintains a source map and reconciles the full outline, cross-section relationships, table boundaries, and protected values before publishing. If the source cannot be reviewed completely, it preserves uncertainty and reports the limit rather than guessing.
+
 ## Verification and quality boundary
 
 WolfMarkDown PASS means the artifact passed the applicable deterministic checks:
@@ -145,6 +190,15 @@ WolfMarkDown PASS means the artifact passed the applicable deterministic checks:
 - failed Clean and Compose operations did not leave an unverified published result.
 
 Standalone Verify without an integrity source reports integrity as skipped. Its PASS does not prove that protected tokens were preserved.
+
+### Protected details
+
+When an untouched source snapshot is available, integrity checks protect technical content including:
+
+- URLs, inline code, and fenced code;
+- public keys, signatures, hashes, versions, and identifiers;
+- filesystem paths and contextual environment variables;
+- dates, percentages, and currency values.
 
 This is Markdown-quality evidence, not content approval. PASS does not establish factual correctness, completeness, currency, policy compliance, or authorisation to publish. It does not fact-check claims.
 
@@ -189,6 +243,8 @@ The agent owns intent routing, source mapping, semantic classification, conversa
 The scripts own formatting, Markdown lint, GFM parsing, fence balance, frontmatter checks, protected-token integrity, idempotence, installation, Doctor checks, rollback, and property-based semantic evaluation. They do not rewrite source meaning.
 
 Prettier is the sole final printer.
+
+The machine skill ID and filesystem directory are intentionally lowercase `wolfmarkdown`; the product name is **WolfMarkDown**.
 
 ### Semantic evaluations
 
@@ -249,4 +305,8 @@ Pull requests are especially useful for reproducible Markdown failures, integrit
 
 WolfMarkDown is available under the [MIT Licence](./LICENSE).
 
-If WolfMarkDown saves you from manually fixing AI-generated Markdown, [star WolfMarkDown on GitHub](https://github.com/WolfMarkTools/WolfMarkDown) so other agent users can find it.
+## Support the project
+
+<p align="center"><strong>Less cleanup after the agent. More Markdown you can ship.</strong></p>
+
+<p align="center">If WolfMarkDown saves you from manually fixing AI-generated Markdown, <a href="https://github.com/WolfMarkTools/WolfMarkDown">star WolfMarkDown on GitHub</a> so other agent users can find it.</p>

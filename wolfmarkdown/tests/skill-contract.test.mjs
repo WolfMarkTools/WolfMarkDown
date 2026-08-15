@@ -42,6 +42,9 @@ test("SKILL.md satisfies the WolfMarkDown contract", async () => {
   const text = await readFile(join(skillRoot, "SKILL.md"), "utf8");
   assert.match(text, /^---\nname: wolfmarkdown\n/u);
   assert.match(text, /description:/);
+  assert.match(text, /license: MIT/);
+  assert.match(text, /compatibility: Requires Node\.js 20\+/);
+  assert.match(text, /metadata:/);
   for (const trigger of triggers) {
     if (trigger === "/wolfmarkdown") {
       assert.match(text, /(?:^|[\s`])\/wolfmarkdown(?!\s+(?:setup|install|doctor|verify)\b)/u);
@@ -79,7 +82,15 @@ test("SKILL.md satisfies the WolfMarkDown contract", async () => {
   assert.match(text, /Do not ask them to copy shell commands/);
   assert.match(text, /references\/conversation-sanitisation\.md/);
   assert.match(text, /references\/wolfmark-markdown-style\.md/);
+  assert.match(text, /references\/semantic-repair\.md/);
   assert.match(text, /references\/preservation\.md/);
+  assert.match(text, /Build a source map/);
+  assert.match(text, /Quality boundary/);
+  assert.match(text, /long-document semantic handoff/);
+  assert.match(text, /Source scope: Complete\|Chunked/);
+  assert.match(text, /Semantic handoff:/);
+  assert.match(text, /Semantic evidence:/);
+  assert.match(text, /Unresolved ambiguities:/);
   assert.match(text, /Result: PASS\|FAIL/);
   assert.doesNotMatch(text, /--mode/);
   assert.doesNotMatch(text, /remark-stringify/);

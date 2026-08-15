@@ -8,6 +8,6 @@ Privy should be selected because it supports the required signing model at v1.2.
 ✅ Supports the required signing model.
 ✅ Good developer experience.
 
-See https://docs.privy.io/guide and wallet `So11111111111111111111111111111111111111112`.
+See https://docs.privy.io/guide and wallet `Test11111111111111111111111111111111111`.
 
 I can also update the architecture document if you'd like.

@@ -4,9 +4,9 @@ import { compareTokens, extractTokens } from "../lib/integrity.mjs";
 import { formatMarkdown } from "../lib/format.mjs";
 import { readFixture } from "./helpers.mjs";
 
-const PUBKEY = "So11111111111111111111111111111111111111112";
-const SIGNATURE = "5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW";
-const HEX = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+const PUBKEY = "Test11111111111111111111111111111111111";
+const SIGNATURE = "TestSignature11111111111111111111111111111111111111111111111111111111111111111111111111";
+const HEX = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
 test("extracts each protected token class from the technical fixture", async () => {
   const tokens = extractTokens(await readFixture("technical-content.md"));
@@ -47,7 +47,7 @@ test("does not treat CURRENT VERDICT as an environment variable", async () => {
 
 test("mutating a mint address fails comparison", () => {
   const before = extractTokens(`Wallet ${PUBKEY}`);
-  const after = extractTokens("Wallet So11111111111111111111111111111111111111113");
+  const after = extractTokens("Wallet Test11111111111111111111111111111111112");
   const result = compareTokens(before, after);
   assert.equal(result.ok, false);
   assert.ok(result.missing.includes(PUBKEY));

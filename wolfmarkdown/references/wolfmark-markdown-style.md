@@ -14,6 +14,10 @@ Use `-` for unordered lists. Preserve intentional nesting. Use numbered lists wh
 
 Unicode `•` is not a Markdown list marker. Convert it during semantic restructuring, not by hoping the formatter will do it.
 
+## Semantic structure recovery
+
+Use [semantic-repair.md](semantic-repair.md) for the source-map, candidate-repair, and reconciliation workflow. This style reference defines the Markdown representation after those semantic decisions have been made.
+
 ## Code
 
 Use fenced code with triple backticks. Add a language only when it is known confidently. Do not rewrite code or configuration examples. Keep fences balanced.

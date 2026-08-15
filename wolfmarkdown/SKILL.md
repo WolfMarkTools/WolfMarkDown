@@ -24,6 +24,10 @@ metadata:
 
 WolfMarkDown is the trusted Markdown output layer for an agent. When the user explicitly wants Markdown created, exported, saved, cleaned, repaired, polished, or validated, take responsibility for a clean, standalone, verified `.md` file.
 
+## Quality boundary
+
+A WolfMarkDown PASS means the agent has made source-grounded structural decisions and the resulting Markdown passed deterministic verification. It does not establish that the source is factually correct, complete, current, policy-compliant, or authorised for publication. Do not present Markdown quality as content approval.
+
 Do not activate Compose merely because a normal answer could be written in Markdown. The fact that an answer could be represented in Markdown is not sufficient to trigger WolfMarkDown Compose. The user must explicitly request Markdown output, a `.md` file, export/save behaviour, or WolfMarkDown itself.
 
 Do not take over requests such as "Summarise this", "Give me some notes", "Write an explanation", "Compare these options", "Give me a report", or "Write some documentation" unless they also ask for Markdown, a `.md` file, export/save of a Markdown file, or WolfMarkDown.
@@ -37,19 +41,21 @@ Resolve every script path from this `SKILL.md` directory.
 - `scripts/format-markdown.mjs`
 - `scripts/verify-markdown.mjs`
 
+Requires Node.js 20 or newer.
+
 Load references only when the matching phase needs them.
 
 ## Slash command
 
 Where the harness exposes Agent Skills as slash commands (Grok does), this skill is `/wolfmarkdown`. Codex and Cursor may not use the same slash UI; they still accept the natural-language forms below.
 
-| Invocation | Intent |
-| --- | --- |
-| `/wolfmarkdown setup` or `/wolfmarkdown install` | Setup |
-| `/wolfmarkdown doctor` | Doctor |
-| `/wolfmarkdown verify <file.md>` | Verify |
-| `/wolfmarkdown <file.md>` | Clean |
-| `/wolfmarkdown` plus export or write wording | Compose |
+| Invocation                                       | Intent  |
+| ------------------------------------------------ | ------- |
+| `/wolfmarkdown setup` or `/wolfmarkdown install` | Setup   |
+| `/wolfmarkdown doctor`                           | Doctor  |
+| `/wolfmarkdown verify <file.md>`                 | Verify  |
+| `/wolfmarkdown <file.md>`                        | Clean   |
+| `/wolfmarkdown` plus export or write wording     | Compose |
 
 ## Intent
 
@@ -101,7 +107,7 @@ Report PASS or FAIL with the verifier errors.
 1. Read the complete existing file.
 2. Snapshot the original bytes to a unique OS temp file. Do not commit it. Do not overwrite it later.
 3. Classify. Sanitise conversation scaffolding only when appropriate. See [conversation-sanitisation.md](references/conversation-sanitisation.md).
-4. Make the smallest semantic changes needed. Do not rewrite already-good prose. See [wolfmark-markdown-style.md](references/wolfmark-markdown-style.md).
+4. Build a source map, use the long-document semantic handoff when needed, repair the candidate, and reconcile every clear signal by following [semantic-repair.md](references/semantic-repair.md). Apply [wolfmark-markdown-style.md](references/wolfmark-markdown-style.md) for Markdown conventions. Do not let a syntactically valid, Prettier-stable document substitute for recovered structure. Make the smallest semantic changes needed and do not rewrite already-good prose.
 5. Write a candidate, format with `format-markdown.mjs`, verify with `--integrity-from` the snapshot.
 6. If verification cannot pass, restore the original file from the snapshot before reporting FAIL. See [compose.md](references/compose.md) for publish/restore rules.
 7. Confirm format `--check`. Report. Delete the temporary snapshot after the report, on both PASS and FAIL. Do not refresh the snapshot from the edited file.
@@ -115,8 +121,9 @@ See [compose.md](references/compose.md) and [preservation.md](references/preserv
 3. If the target already exists and the user did not clearly authorise replace/update, do not overwrite it.
 4. Compose a standalone document. Derive a concise H1 from the source unless the user asked for a fragment, README section, or insert. Do not add YAML frontmatter unless requested, already present, or required by an obvious repo convention.
 5. Remove chat-only scaffolding and convert conversation-dependent language into document language. Do not fabricate missing context or citation URLs.
-6. Write a temp candidate, format, verify against the source snapshot.
-7. Publish to the destination only after PASS. Do not leave an unverified file at the destination. Clean up temps.
+6. Build a source map, use the long-document semantic handoff when needed, repair the candidate, and reconcile every clear signal by following [semantic-repair.md](references/semantic-repair.md). Apply [wolfmark-markdown-style.md](references/wolfmark-markdown-style.md) for Markdown conventions. Semantic judgement remains agent-owned and deterministic scripts remain proof only.
+7. Write a temporary candidate, format it, and verify it against the source snapshot.
+8. Publish to the destination only after PASS. Do not leave an unverified file at the destination. Clean up temporary files.
 
 ## Report
 
@@ -150,6 +157,10 @@ WolfMarkDown
 Operation: Clean
 File: <path>
 Semantic structure: Pass|Fail
+Source scope: Complete|Chunked (<reviewed boundaries>)
+Semantic handoff: Complete|<remaining reconciliation>
+Semantic evidence: <source-grounded headings/tables/lists/paragraphs summary>
+Unresolved ambiguities: None|<concise description>
 Conversation sanitisation: Pass|Skipped|Fail
 Heading hierarchy: Pass|Fail
 Tables: <n rebuilt>|Unchanged
@@ -168,6 +179,10 @@ WolfMarkDown
 Operation: Compose
 Output: <path>
 Semantic structure: Pass|Fail
+Source scope: Complete|Chunked (<reviewed boundaries>)
+Semantic handoff: Complete|<remaining reconciliation>
+Semantic evidence: <source-grounded headings/tables/lists/paragraphs summary>
+Unresolved ambiguities: None|<concise description>
 Conversation sanitisation: Pass|Skipped|Fail
 Heading hierarchy: Pass|Fail
 Tables: <n created>|Unchanged
@@ -185,4 +200,4 @@ Do not report invented metrics. No decorative status symbols.
 
 ## Red flags
 
-Do not report PASS if verify was skipped, verify exited non-zero, the target was edited before the snapshot, the edited file was used as `--integrity-from`, a failed Clean left a changed file, a failed Compose published the destination, a code block was sanitised, a protected token was dropped, a legitimate transcript was removed, code was rewritten, a citation URL was invented, the report introduced decorative emoji, or the user was asked to run install or npm commands themselves.
+Do not report PASS if verify was skipped, verify exited non-zero, the target was edited before the snapshot, the edited file was used as `--integrity-from`, a failed Clean left a changed file, a failed Compose published the destination, a code block was sanitised, a protected token was dropped, a legitimate transcript was removed, code was rewritten, a citation URL was invented, the report introduced decorative emoji, the source scope was incomplete without disclosure, or the user was asked to run install or npm commands themselves. Do not claim that PASS validates the source's factual correctness or publication readiness.

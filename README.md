@@ -1,5 +1,7 @@
 # WolfMarkDown
 
+<!-- markdownlint-disable MD033 -->
+
 <p align="center"><strong>Production-ready Markdown from AI agents — created, cleaned, repaired, and verified.</strong></p>
 
 <p align="center">Agent judgement for structure. Deterministic tooling for proof.</p>
@@ -17,6 +19,8 @@ AI agents can produce excellent research, documentation, and plans while still l
 
 It combines semantic agent judgement with deterministic formatting, linting, parsing, integrity checks, idempotence checks, and failure-safe publishing.
 
+WolfMarkDown supports Node.js 20 or newer, including Node.js 22 and Node.js 24.
+
 ## Install in one command
 
 ```bash
@@ -32,7 +36,7 @@ Choose the agents and installation scope when prompted. WolfMarkDown follows the
 Prettier is an excellent Markdown printer. WolfMarkDown solves the parts that a printer cannot.
 
 | Capability | Prettier alone | WolfMarkDown |
-| --- | :---: | :---: |
+| --- | :-: | :-: |
 | Deterministic Markdown formatting | Yes | Yes |
 | Repair semantic document structure | No | Yes |
 | Remove copied AI conversation scaffolding | No | Yes |
@@ -112,6 +116,16 @@ The split is deliberate:
 
 Prettier is the sole final printer.
 
+## Semantic repair
+
+WolfMarkDown reconstructs headings, lists, tables, paragraphs, and sibling sections only when the source makes the structure clear. A headerless tab run is not automatically a table, a short sentence is not automatically a heading, and an isolated `Label: value` phrase is not automatically a list item.
+
+For long documents, the agent maintains an internal document ledger and semantic handoff while it processes confirmed section boundaries. Before publishing, it reconciles the full outline, cross-section relationships, table boundaries, and protected values. If the source cannot be reviewed completely, it preserves uncertain material and reports the limit rather than guessing.
+
+## Quality boundary
+
+A WolfMarkDown PASS is source-grounded evidence of structurally production-ready Markdown. It is Markdown-quality evidence, not content approval. It does not fact-check claims, establish completeness or currency, assess policy compliance, or authorise publication. Deterministic verification does not certify arbitrary prose; semantic judgement remains agent-owned.
+
 ## Use it
 
 ### Clean an existing document
@@ -157,10 +171,10 @@ Slash-command presentation is harness-specific; natural-language invocation rema
 
 WolfMarkDown was released with both deterministic and agent-level verification rather than relying on example screenshots alone.
 
-### WolfMarkDown v0.1.x
+### WolfMarkDown v0.2.0
 
-- **51/51 Node tests passed**
-- **15/15 semantic evals passed**
+- **79/79 Node tests passed**
+- **20 semantic-evaluation rubrics included**
 - `skills-ref validate ./wolfmarkdown` — **Valid skill**
 - installer idempotence — **PASS**
 - Doctor checks — **PASS**
@@ -185,18 +199,11 @@ The submission is currently awaiting maintainer review in [github/awesome-copilo
 
 ## Compatibility
 
-WolfMarkDown keeps one implementation. Agent-specific locations are discovery links or packaging aliases, not vendor forks.
+WolfMarkDown is model-agnostic. The same skill works with any agent host that can load Agent Skills from `.agents/skills/wolfmarkdown` or the Claude Code compatibility location `.claude/skills/wolfmarkdown`.
 
-| Agent / harness | Status | Evidence |
-| --- | --- | --- |
-| Codex | Tier 1 | Agent Skills-compatible; public `npx skills` installation path verified |
-| Cursor | Tier 1 | Agent Skills-compatible |
-| Grok Build | Tier 1 | Tested during development |
-| Claude Code | Tier 1 | Dedicated global install smoke test verified |
-| GitHub Copilot | Compatible | Awesome Copilot external-plugin install smoke test passed; maintainer review pending |
-| OpenCode | Tier 1 | Agent Skills-compatible; behavioural acceptance pending |
-| Gemini CLI | Tier 1 | Agent Skills-compatible; behavioural acceptance pending |
-| Antigravity | Tier 1 | Project/shared Agent Skills-compatible; behavioural acceptance pending |
+Examples include Codex, Cursor, Grok Build, Claude Code, OpenCode, Gemini CLI, Antigravity, and GitHub Copilot when their host enables the relevant Agent Skills discovery convention. It is one portable implementation, not a model-specific prompt or a set of vendor forks.
+
+Slash-style `/wolfmarkdown` is harness-specific. Natural-language invocation works wherever the host loads the skill. The host model determines the quality of semantic judgement; WolfMarkDown supplies the workflow, preservation rules, and deterministic checks across compatible hosts.
 
 The [`skills` CLI](https://github.com/vercel-labs/skills) can install Agent Skills across a broad set of supported agent harnesses.
 
@@ -279,6 +286,8 @@ node wolfmarkdown/scripts/verify-markdown.mjs path/to/file.md --json
 
 Semantic cases live in `wolfmarkdown/tests/evals/`. Cross-agent acceptance inputs live in `wolfmarkdown/tests/acceptance/`.
 
+The Node suite protects the deterministic tooling and skill contract. Semantic evals are agent-executed structural rubrics: they assess whether an agent recovered or conservatively preserved source structure, rather than comparing a brittle full-document snapshot.
+
 ## Current boundaries
 
 - `/wolfmarkdown setup` only works after the skill is discoverable by the agent.
@@ -286,6 +295,8 @@ Semantic cases live in `wolfmarkdown/tests/evals/`. Cross-agent acceptance input
 - vendor-specific behavioural forks are intentionally not created.
 - Windows requires permission to create the appropriate discovery link or junction.
 - semantic sanitisation remains agent-judged by design.
+- The verifier proves Markdown and content-integrity properties; it does not understand arbitrary prose or certify recovered semantic structure.
+- Long-document repair depends on the agent retaining and reconciling its document ledger; incomplete source review must be reported rather than guessed.
 
 ## Contributing
 

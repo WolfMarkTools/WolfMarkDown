@@ -5,9 +5,9 @@ CURRENT VERDICT
 Protected values must survive unchanged.
 
 - URL: https://api.example.com/v2/wallets
-- Pubkey: So11111111111111111111111111111111111111112
-- Signature: 5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW
-- Hex: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+- Pubkey: Test11111111111111111111111111111111111
+- Signature: TestSignature11111111111111111111111111111111111111111111111111111111111111111111111111
+- Hex: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 - Versions: 1.2.3, v1.2.3, 1.2.3-beta.1, v1.2.3+build.7
 - Path home: ~/Projects/x
 - Path relative: ./scripts/format-markdown.mjs

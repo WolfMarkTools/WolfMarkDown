@@ -6,7 +6,7 @@
 Assistant:
 Absolutely. Here's what I found ✅
 After looking into it I think Privy is the best option because it supports the required signing model at v1.2.3.
-Wallet: So11111111111111111111111111111111111111112
+Wallet: Test11111111111111111111111111111111111
 See https://docs.privy.io/guide
 Let me know if you'd like me to investigate anything else.
 ```

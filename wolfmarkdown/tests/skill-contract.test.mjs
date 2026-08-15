@@ -79,7 +79,11 @@ test("SKILL.md satisfies the WolfMarkDown contract", async () => {
   assert.match(text, /Do not ask them to copy shell commands/);
   assert.match(text, /references\/conversation-sanitisation\.md/);
   assert.match(text, /references\/wolfmark-markdown-style\.md/);
+  assert.match(text, /references\/semantic-repair\.md/);
   assert.match(text, /references\/preservation\.md/);
+  assert.match(text, /Build a source map/);
+  assert.match(text, /Semantic evidence:/);
+  assert.match(text, /Unresolved ambiguities:/);
   assert.match(text, /Result: PASS\|FAIL/);
   assert.doesNotMatch(text, /--mode/);
   assert.doesNotMatch(text, /remark-stringify/);

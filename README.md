@@ -10,6 +10,7 @@ It is the trusted Markdown output layer for an agent: when you explicitly want a
 - Compose or export a new Markdown file
 - Remove copied-agent conversation scaffolding
 - Repair headings, lists, fences, and comparison tables when source intent is clear
+- Map latent source structure before editing, then reconcile every clear signal before deterministic verification
 - Preserve technical identifiers, URLs, and meaningful citations
 - Format deterministically with Prettier as the sole final printer
 - Validate with markdownlint and GFM checks before publishing
@@ -98,7 +99,7 @@ node wolfmarkdown/scripts/verify-markdown.mjs path/to/file.md --json
 
 ## Architecture
 
-The agent owns judgement: intent, conversation sanitisation, decorative versus substantive emoji, structure, and composition. A deterministic pass does not make flattened or semantically poor prose production-ready.
+The agent owns judgement: intent, conversation sanitisation, decorative versus substantive emoji, structure, and composition. Clean and Compose use a two-pass workflow: map source boundaries, tables, labelled groups, sequences, paragraphs, and protected regions; then reconcile the candidate against that map. A deterministic pass does not make flattened or semantically poor prose production-ready.
 
 Scripts own deterministic proof: GFM parse, Prettier, markdownlint, fence balance, frontmatter, protected-token integrity, idempotence, install, and doctor.
 

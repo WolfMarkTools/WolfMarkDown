@@ -120,11 +120,15 @@ Agent semantic judgement
     ↓
 Source map and semantic repair
     ↓
-Prettier
+GFM parse + heading/table checks
     ↓
-markdownlint + GFM parse + fence checks
+Fence, frontmatter + whitespace checks
     ↓
-Protected-token integrity + idempotence
+Prettier format check
+    ↓
+markdownlint
+    ↓
+Protected-token integrity (with a source snapshot) + idempotence
     ↓
 PASS → keep or publish     FAIL → restore or do not publish
 ```
@@ -133,12 +137,14 @@ Before formatting, the agent checks for flattened semantic structure. A document
 
 ## Verification and quality boundary
 
-WolfMarkDown PASS means:
+WolfMarkDown PASS means the artifact passed the applicable deterministic checks:
 
-- the Markdown artifact passed deterministic formatting, parsing, lint, fence, integrity, and idempotence checks;
+- the Markdown artifact passed formatting, parsing, lint, fence, and idempotence checks;
 - the agent made and reported source-grounded structural decisions;
-- protected technical content was preserved;
+- protected technical content was preserved only when integrity was checked against an untouched source snapshot, as in Clean and Compose or with `--integrity-from`;
 - failed Clean and Compose operations did not leave an unverified published result.
+
+Standalone Verify without an integrity source reports integrity as skipped. Its PASS does not prove that protected tokens were preserved.
 
 This is Markdown-quality evidence, not content approval. PASS does not establish factual correctness, completeness, currency, policy compliance, or authorisation to publish. It does not fact-check claims.
 

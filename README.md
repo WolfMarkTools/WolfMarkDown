@@ -171,10 +171,10 @@ Slash-command presentation is harness-specific; natural-language invocation rema
 
 WolfMarkDown was released with both deterministic and agent-level verification rather than relying on example screenshots alone.
 
-### WolfMarkDown v0.1.x
+### WolfMarkDown v0.2.0
 
-- **51/51 Node tests passed**
-- **15/15 semantic evals passed**
+- **79/79 Node tests passed**
+- **20 semantic-evaluation rubrics included**
 - `skills-ref validate ./wolfmarkdown` — **Valid skill**
 - installer idempotence — **PASS**
 - Doctor checks — **PASS**

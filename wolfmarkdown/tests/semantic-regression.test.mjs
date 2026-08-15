@@ -143,7 +143,7 @@ test("semantic repair workflow requires source mapping and reconciliation", asyn
 test("README distinguishes verified Markdown quality from content approval", async () => {
   const readme = await readFile(readmePath, "utf8");
 
-  assert.match(readme, /structurally production-ready Markdown/u);
+  assert.match(readme, /agent publishing workflow/u);
   assert.match(readme, /does not fact-check claims/u);
   assert.match(readme, /Markdown-quality evidence, not content approval/u);
 });

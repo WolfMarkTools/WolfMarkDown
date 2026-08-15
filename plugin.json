@@ -1,0 +1,21 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "wolfmarkdown",
+  "version": "0.1.1",
+  "description": "Create, clean, sanitise, format, and verify production-ready Markdown with agent judgement plus deterministic validation.",
+  "author": {
+    "name": "WolfMark Tools",
+    "url": "https://github.com/WolfMarkTools"
+  },
+  "homepage": "https://github.com/WolfMarkTools/WolfMarkDown",
+  "repository": "https://github.com/WolfMarkTools/WolfMarkDown",
+  "license": "MIT",
+  "keywords": [
+    "markdown",
+    "agent-skills",
+    "formatting",
+    "validation",
+    "documentation",
+    "ai-agents"
+  ]
+}

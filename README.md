@@ -1,8 +1,8 @@
 # WolfMarkDown
 
-WolfMarkDown is a cross-agent Markdown repair skill for creating, cleaning, sanitising, formatting, and verifying standalone Markdown. It aims for production-ready output when the agent's semantic review and the deterministic checks both pass; the scripts do not certify arbitrary prose structure.
+WolfMarkDown turns messy Markdown and pasted source material into standalone Markdown people can read, review, and commit. It gives an agent a disciplined repair workflow for structure, safety, and proof instead of treating formatting as a final cosmetic pass.
 
-It is the trusted Markdown output layer for an agent: when you explicitly want a `.md` file created, exported, saved, cleaned, or validated, WolfMarkDown takes responsibility for a standalone, verified result.
+Use it when a report, research dump, meeting note, agent response, or comparison matrix needs to become a dependable `.md` file. WolfMarkDown aims for structurally production-ready Markdown when the agent's semantic review and the deterministic checks both pass; the scripts do not certify arbitrary prose structure or underlying content quality.
 
 ## Capabilities
 
@@ -11,6 +11,8 @@ It is the trusted Markdown output layer for an agent: when you explicitly want a
 - Remove copied-agent conversation scaffolding
 - Repair headings, lists, fences, and comparison tables when source intent is clear
 - Map latent source structure before editing, then reconcile every clear signal before deterministic verification
+- Preserve ambiguity instead of inventing a table schema, heading, list, or claim
+- Maintain a document ledger and semantic handoff when long sources need bounded processing
 - Preserve technical identifiers, URLs, and meaningful citations
 - Format deterministically with Prettier as the sole final printer
 - Validate with markdownlint and GFM checks before publishing
@@ -23,22 +25,13 @@ WolfMarkDown does not rewrite already-good prose for style, and it does not take
 
 Node.js 20 or newer is supported, including Node.js 22 and Node.js 24. Both the repository package and the WolfMarkDown runtime package declare `engines.node` as `>=20`.
 
-## Supported agents
+## Compatibility
 
-One implementation. Agent-specific paths are discovery links only.
+WolfMarkDown is model-agnostic. The same skill works with any agent host that can load Agent Skills from `.agents/skills/wolfmarkdown` or the Claude Code compatibility location `.claude/skills/wolfmarkdown`.
 
-| Agent | Support | Discovery | Evidence |
-| --- | --- | --- | --- |
-| Codex | Tier 1 | Shared Agent Skills | Standard-compatible |
-| Cursor | Tier 1 | Shared Agent Skills | Standard-compatible |
-| Grok Build | Tier 1 | Shared Agent Skills | Tested in this repository |
-| Claude Code | Tier 1 | Claude compatibility link | Standard-compatible |
-| OpenCode | Tier 1 | Shared Agent Skills | Standard-compatible; acceptance pending |
-| Gemini CLI | Tier 1 | Shared Agent Skills | Standard-compatible; acceptance pending |
-| Antigravity | Tier 1 | Project/shared Agent Skills | Standard-compatible; acceptance pending |
-| GitHub Copilot | Tier 2 | Shared Agent Skills | Standard-compatible; not acceptance-tested |
+Examples include Codex, Cursor, Grok Build, Claude Code, OpenCode, Gemini CLI, Antigravity, and GitHub Copilot when their host enables the relevant Agent Skills discovery convention. It is one portable implementation, not a model-specific prompt or a set of vendor forks.
 
-Slash-style `/wolfmarkdown` is harness-specific (Grok, sometimes Claude). Other agents should be invoked in natural language.
+Slash-style `/wolfmarkdown` is harness-specific. Natural-language invocation works wherever the host loads the skill. The host model determines the quality of semantic judgement; WolfMarkDown supplies the same workflow, preservation rules, and deterministic checks across compatible hosts.
 
 ## Installation
 
@@ -105,6 +98,16 @@ Scripts own deterministic proof: GFM parse, Prettier, markdownlint, fence balanc
 
 Prettier is the only final printer.
 
+## Semantic repair
+
+WolfMarkDown reconstructs headings, lists, tables, paragraphs, and sibling sections only when the source makes the structure clear. A headerless tab run is not automatically a table, a short sentence is not automatically a heading, and an isolated `Label: value` phrase is not automatically a list item.
+
+For long documents, the agent maintains an internal document ledger and semantic handoff while it processes confirmed section boundaries. Before publishing, it reconciles the full outline, cross-section relationships, table boundaries, and protected values. If the source cannot be reviewed completely, it preserves uncertain material and reports the limit rather than guessing.
+
+## Quality boundary
+
+WolfMarkDown can establish source-grounded structure and verified Markdown properties. It does not fact-check claims, establish completeness or currency, assess policy compliance, or authorise public release. A WolfMarkDown PASS is Markdown-quality evidence, not content approval.
+
 ## Development
 
 ```bash
@@ -121,6 +124,8 @@ npx skills add WolfMarkTools/WolfMarkDown --skill wolfmarkdown
 
 Semantic cases live in `wolfmarkdown/tests/evals/`. Cross-agent acceptance inputs live in `wolfmarkdown/tests/acceptance/`.
 
+The Node suite protects the deterministic tooling and skill contract. Semantic evals are agent-executed structural rubrics: they assess whether an agent recovered or conservatively preserved the source structure, rather than comparing a brittle full-document snapshot.
+
 ## Limitations
 
 - `/wolfmarkdown setup` only works after the skill is already discoverable.
@@ -129,6 +134,7 @@ Semantic cases live in `wolfmarkdown/tests/evals/`. Cross-agent acceptance input
 - Windows still needs permission to create a junction or symlink.
 - Semantic sanitisation remains agent-judged.
 - The verifier proves Markdown and content-integrity properties; it does not understand arbitrary prose or certify recovered semantic structure.
+- Long-document repair depends on the agent retaining and reconciling its document ledger; incomplete source review must be reported rather than guessed.
 
 ## Licence
 

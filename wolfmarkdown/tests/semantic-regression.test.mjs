@@ -10,6 +10,7 @@ const inputPath = join(skillRoot, "tests", "fixtures", "input", "semantic-struct
 const evidencePath = join(skillRoot, "tests", "fixtures", "evidence", "semantic-structure-recovery.bad-output.md");
 const evalPath = join(skillRoot, "tests", "evals", "semantic-structure-recovery.md");
 const semanticRepairPath = join(skillRoot, "references", "semantic-repair.md");
+const readmePath = join(skillRoot, "..", "README.md");
 
 const generalSemanticCases = [
   {
@@ -54,6 +55,19 @@ const generalSemanticCases = [
       /sibling experiment sections/u,
       /ordered execution steps/u,
       /semantic evidence/u,
+    ],
+  },
+  {
+    name: "ambiguous structure",
+    fixture: "ambiguous-structure-preservation.md",
+    eval: "ambiguous-structure-preservation.md",
+    signals: [/alpha-east\t12/u, /Status: pending/u, /RUN_42/u],
+    assertions: [
+      /ambiguous headerless run/u,
+      /do not create a table schema/u,
+      /warning sentence/u,
+      /not a repeated labelled group/u,
+      /unresolved header ambiguity/u,
     ],
   },
 ];
@@ -117,9 +131,21 @@ test("semantic repair workflow requires source mapping and reconciliation", asyn
     /Reconcile before formatting/u,
     /all clear source signals are accounted for/u,
     /Report semantic evidence/u,
+    /Long documents and agent handoff/u,
+    /internal semantic handoff/u,
+    /Do not manufacture structure/u,
+    /without a recognisable header is not a GFM table/u,
   ]) {
     assert.match(guidance, assertion);
   }
+});
+
+test("README distinguishes verified Markdown quality from content approval", async () => {
+  const readme = await readFile(readmePath, "utf8");
+
+  assert.match(readme, /structurally production-ready Markdown/u);
+  assert.match(readme, /does not fact-check claims/u);
+  assert.match(readme, /Markdown-quality evidence, not content approval/u);
 });
 
 for (const semanticCase of generalSemanticCases) {

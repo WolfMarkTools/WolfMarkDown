@@ -30,6 +30,12 @@ Baseline executed 2026-08-15 against the current SKILL.md workflow:
 
 These cases require source-grounded semantic evidence and unresolved-ambiguity reporting. Deterministic PASS remains necessary but is not the semantic oracle.
 
+Semantic PASS establishes Markdown-quality evidence only. It does not fact-check source claims, establish completeness or currency, or authorise publication.
+
+## Cases pending fresh-agent execution
+
+- ambiguous-structure-preservation: headerless tab runs, isolated warning sentences, and lone labels that must remain conservatively preserved
+
 ## Two-pass workflow forward test
 
 Fresh-agent runs on 2026-08-15 used only the redesigned skill and raw synthetic fixture, without the eval rubric:

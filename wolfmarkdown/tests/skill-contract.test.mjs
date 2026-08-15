@@ -85,6 +85,10 @@ test("SKILL.md satisfies the WolfMarkDown contract", async () => {
   assert.match(text, /references\/semantic-repair\.md/);
   assert.match(text, /references\/preservation\.md/);
   assert.match(text, /Build a source map/);
+  assert.match(text, /Quality boundary/);
+  assert.match(text, /long-document semantic handoff/);
+  assert.match(text, /Source scope: Complete\|Chunked/);
+  assert.match(text, /Semantic handoff:/);
   assert.match(text, /Semantic evidence:/);
   assert.match(text, /Unresolved ambiguities:/);
   assert.match(text, /Result: PASS\|FAIL/);

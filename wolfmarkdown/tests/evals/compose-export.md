@@ -9,7 +9,7 @@ Source material (not already a document):
 ```text
 Absolutely. Here's what I found ✅
 I think Privy is the strongest option because it supports the required signing model at v1.2.3.
-Wallet So11111111111111111111111111111111111111112
+Wallet Test11111111111111111111111111111111111
 https://docs.privy.io/guide
 Let me know if you'd like a write-up.
 ```

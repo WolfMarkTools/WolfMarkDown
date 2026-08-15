@@ -1,6 +1,9 @@
 {
   "name": "wolfmarkdown-repo",
   "private": true,
+  "engines": {
+    "node": ">=20"
+  },
   "description": "Convenience scripts for the WolfMarkDown repository",
   "scripts": {
     "test": "npm test --prefix wolfmarkdown",

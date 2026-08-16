@@ -220,7 +220,7 @@ Deterministic checks are proof of artifact properties. They are not a semantic o
 
 ### v0.2.2 release evidence
 
-- **91/91 Node tests pass.**
+- **92/92 Node tests pass.**
 - Executable semantic property checks cover headings, GFM tables, recognised protected tokens, conservative record-boundary preservation, and invented-table rejection.
 - `skills-ref validate ./wolfmarkdown` passes.
 - Installer, Doctor, rollback, target-collision, integrity, and idempotence checks remain covered.

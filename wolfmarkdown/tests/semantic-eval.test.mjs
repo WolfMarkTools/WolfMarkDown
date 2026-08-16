@@ -51,6 +51,7 @@ test("conservative list candidate preserves ambiguous records after Prettier", a
   assert.equal(result.checks.records, true);
   assert.equal(result.checks.ambiguity, true);
   assert.equal(result.evidence.tableCount, 0);
+  assert.deepEqual(result.evidence.recordLines, [3, 4, 5]);
 });
 
 test("blank-line separated records also satisfy the ambiguous-structure case", async () => {
@@ -103,6 +104,38 @@ test("reordered or swapped associations fail the record check", () => {
   assert.equal(result.ok, false);
   assert.equal(result.checks.records, false);
   assert.match(result.errors.join("\n"), /order or association/u);
+});
+
+test("record tokens do not match hyphen or decimal extensions", () => {
+  const properties = {
+    preserveRecords: [
+      ["alpha-east", "12"],
+      ["bravo-west", "9"],
+    ],
+  };
+  const hyphenExtended = evaluateSemanticProperties(
+    "alpha-east\t12\nbravo-west\t9\n",
+    "- alpha-east-prod 12\n- bravo-west 9\n",
+    properties,
+  );
+  assert.equal(hyphenExtended.ok, false);
+  assert.equal(hyphenExtended.checks.records, false);
+
+  const decimalExtended = evaluateSemanticProperties(
+    "alpha-east\t12\nbravo-west\t9\n",
+    "- alpha-east 12.5\n- bravo-west 9\n",
+    properties,
+  );
+  assert.equal(decimalExtended.ok, false);
+  assert.equal(decimalExtended.checks.records, false);
+
+  const standalone = evaluateSemanticProperties(
+    "alpha-east\t12\nbravo-west\t9\n",
+    "- alpha-east 12\n- bravo-west 9\n",
+    properties,
+  );
+  assert.equal(standalone.ok, true, standalone.errors.join("\n"));
+  assert.deepEqual(standalone.evidence.recordLines, [1, 2]);
 });
 
 test("semantic evaluator rejects invented structure for ambiguous input", async () => {

@@ -24,14 +24,15 @@ function escapeRegExp(value) {
 
 function lineHasToken(line, token) {
   const escaped = escapeRegExp(token);
-  return new RegExp(`(?<!\\w)${escaped}(?!\\w)`, "u").test(line);
+  return new RegExp(`(?<![\\w.-])${escaped}(?![\\w.-])`, "u").test(line);
 }
 
 function nonEmptyLines(text) {
-  return text
-    .split(/\r?\n/u)
-    .map((line) => line.trim())
-    .filter(Boolean);
+  return text.split(/\r?\n/u).flatMap((line, index) => {
+    const trimmed = line.trim();
+    if (!trimmed) return [];
+    return [{ text: trimmed, lineNumber: index + 1 }];
+  });
 }
 
 function recordTokens(record) {
@@ -47,10 +48,10 @@ export function evaluateRecordBoundaries(candidateText, records = []) {
     const tokens = recordTokens(record);
     if (tokens.length === 0) continue;
     let found = -1;
-    for (let index = 0; index < lines.length; index += 1) {
-      if (assigned.includes(index)) continue;
-      if (tokens.every((token) => lineHasToken(lines[index], token))) {
-        found = index;
+    for (const line of lines) {
+      if (assigned.includes(line.lineNumber)) continue;
+      if (tokens.every((token) => lineHasToken(line.text, token))) {
+        found = line.lineNumber;
         break;
       }
     }

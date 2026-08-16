@@ -58,6 +58,7 @@ async function main(argv) {
     process.stdout.write(`Headings: ${result.checks.headings ? "PASS" : "FAIL"}\n`);
     process.stdout.write(`Tables: ${result.checks.tables ? "PASS" : "FAIL"}\n`);
     process.stdout.write(`Preservation: ${result.checks.preservation ? "PASS" : "FAIL"}\n`);
+    process.stdout.write(`Records: ${result.checks.records ? "PASS" : "FAIL"}\n`);
     process.stdout.write(`Integrity: ${result.checks.integrity ? "PASS" : "FAIL"}\n`);
     process.stdout.write(`Ambiguity: ${result.checks.ambiguity ? "PASS" : "FAIL"}\n`);
     if (result.errors.length > 0) process.stderr.write(`${result.errors.map((error) => `- ${error}`).join("\n")}\n`);

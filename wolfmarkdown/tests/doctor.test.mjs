@@ -25,6 +25,10 @@ test("healthy runtime plus owned global link passes doctor", async () => {
     const health = await inspectHealth({ home, canonicalDir: skillRoot });
     assert.equal(health.runtime.ok, true, health.runtime.errors.join("\n"));
     assert.equal(health.discovery.ok, true, health.discovery.errors.join("\n"));
+    assert.equal(health.ok, true);
+    assert.equal(health.runtimeOk, true);
+    assert.equal(health.discoveryOk, true);
+    assert.equal(health.overallOk, true);
     assert.equal(health.runtime.checks.node, true);
     assert.equal(health.runtime.checks.dependencies, true);
     assert.equal(health.discovery.checks.shared, true);
@@ -36,6 +40,10 @@ test("missing global link is a discovery failure, not a runtime failure", async 
     const health = await inspectHealth({ home, canonicalDir: skillRoot });
     assert.equal(health.runtime.ok, true, health.runtime.errors.join("\n"));
     assert.equal(health.discovery.ok, false);
+    assert.equal(health.ok, true);
+    assert.equal(health.runtimeOk, true);
+    assert.equal(health.discoveryOk, false);
+    assert.equal(health.overallOk, false);
     assert.ok(health.discovery.errors.some((error) => /shared agent skills|missing/i.test(error)));
   });
 });
@@ -51,6 +59,9 @@ test("missing prettier package is a runtime failure", async () => {
     }
     const health = await inspectHealth({ home, canonicalDir: fake });
     assert.equal(health.runtime.ok, false);
+    assert.equal(health.ok, false);
+    assert.equal(health.runtimeOk, false);
+    assert.equal(health.overallOk, false);
     assert.ok(health.runtime.errors.some((error) => /dependenc/i.test(error)));
   });
 });
@@ -203,8 +214,81 @@ test("doctor text Result is FAIL when discovery is missing", async () => {
       encoding: "utf8",
       env: { ...process.env, WOLFMARKDOWN_HOME: home, HOME: home },
     });
+    assert.match(ran.stdout, /^Runtime: Pass$/mu);
+    assert.match(ran.stdout, /^Discovery: Fail$/mu);
+    assert.match(ran.stdout, /^Overall: FAIL$/mu);
+    assert.match(ran.stdout, /Local processing: Available/);
     assert.match(ran.stdout, /Result: FAIL/);
     assert.notEqual(ran.status, 0);
+  });
+});
+
+test("doctor JSON and text describe the same healthy runtime with missing discovery", async () => {
+  await withHome(async (home) => {
+    const env = { ...process.env, WOLFMARKDOWN_HOME: home, HOME: home };
+    const jsonRun = spawnSync(process.execPath, [join(skillRoot, "scripts", "doctor.mjs"), "--json"], {
+      encoding: "utf8",
+      env,
+    });
+    const payload = JSON.parse(jsonRun.stdout);
+    assert.equal(payload.ok, true);
+    assert.equal(payload.runtimeOk, true);
+    assert.equal(payload.discoveryOk, false);
+    assert.equal(payload.overallOk, false);
+    assert.notEqual(jsonRun.status, 0);
+
+    const textRun = spawnSync(process.execPath, [join(skillRoot, "scripts", "doctor.mjs")], {
+      encoding: "utf8",
+      env,
+    });
+    assert.match(textRun.stdout, /^Runtime: Pass$/mu);
+    assert.match(textRun.stdout, /^Discovery: Fail$/mu);
+    assert.match(textRun.stdout, /^Overall: FAIL$/mu);
+    assert.match(textRun.stdout, /Result: FAIL/);
+    assert.equal(textRun.status, jsonRun.status);
+  });
+});
+
+test("doctor JSON and text agree when runtime and discovery are healthy", async () => {
+  await withHome(async (home) => {
+    const dest = join(home, ".agents", "skills", "wolfmarkdown");
+    await mkdir(join(home, ".agents", "skills"), { recursive: true });
+    await symlink(skillRoot, dest);
+    const env = { ...process.env, WOLFMARKDOWN_HOME: home, HOME: home };
+    const jsonRun = spawnSync(process.execPath, [join(skillRoot, "scripts", "doctor.mjs"), "--json"], {
+      encoding: "utf8",
+      env,
+    });
+    const payload = JSON.parse(jsonRun.stdout);
+    assert.equal(payload.runtimeOk, true);
+    assert.equal(payload.discoveryOk, true);
+    assert.equal(payload.overallOk, true);
+    assert.equal(payload.ok, true);
+    assert.equal(jsonRun.status, 0);
+
+    const textRun = spawnSync(process.execPath, [join(skillRoot, "scripts", "doctor.mjs")], {
+      encoding: "utf8",
+      env,
+    });
+    assert.match(textRun.stdout, /^Runtime: Pass$/mu);
+    assert.match(textRun.stdout, /^Discovery: Pass$/mu);
+    assert.match(textRun.stdout, /^Overall: PASS$/mu);
+    assert.match(textRun.stdout, /Result: PASS/);
+    assert.equal(textRun.status, 0);
+  });
+});
+
+test("mismatched discovery target is a discovery failure with healthy runtime", async () => {
+  await withHome(async (home) => {
+    const dest = join(home, ".agents", "skills", "wolfmarkdown");
+    await mkdir(dest, { recursive: true });
+    await writeFile(join(dest, "SKILL.md"), "---\nname: other\n---\n");
+    const health = await inspectHealth({ home, canonicalDir: skillRoot });
+    assert.equal(health.runtimeOk, true);
+    assert.equal(health.discoveryOk, false);
+    assert.equal(health.overallOk, false);
+    assert.equal(health.ok, true);
+    assert.ok(health.discovery.errors.some((error) => /points at|not an owned|expected/i.test(error)));
   });
 });
 

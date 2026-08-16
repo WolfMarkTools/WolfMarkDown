@@ -18,12 +18,64 @@ function collectStructures(candidateText) {
   return { headings, tables };
 }
 
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+}
+
+function lineHasToken(line, token) {
+  const escaped = escapeRegExp(token);
+  return new RegExp(`(?<!\\w)${escaped}(?!\\w)`, "u").test(line);
+}
+
+function nonEmptyLines(text) {
+  return text
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function recordTokens(record) {
+  return (Array.isArray(record) ? record : [record]).map((token) => String(token)).filter(Boolean);
+}
+
+export function evaluateRecordBoundaries(candidateText, records = []) {
+  const lines = nonEmptyLines(candidateText);
+  const assigned = [];
+  const errors = [];
+
+  for (const record of records) {
+    const tokens = recordTokens(record);
+    if (tokens.length === 0) continue;
+    let found = -1;
+    for (let index = 0; index < lines.length; index += 1) {
+      if (assigned.includes(index)) continue;
+      if (tokens.every((token) => lineHasToken(lines[index], token))) {
+        found = index;
+        break;
+      }
+    }
+    const label = tokens.join(" ");
+    if (found === -1) {
+      errors.push(`Record does not survive on its own line: ${label}`);
+      continue;
+    }
+    if (assigned.length > 0 && found <= assigned.at(-1)) {
+      errors.push(`Record order or association was lost: ${label}`);
+      continue;
+    }
+    assigned.push(found);
+  }
+
+  return { ok: errors.length === 0, assigned, errors };
+}
+
 export function evaluateSemanticProperties(sourceText, candidateText, properties = {}) {
   const { headings, tables } = collectStructures(candidateText);
   const errors = [];
   const expectedHeadings = properties.headings ?? [];
   const preservedText = properties.preserve ?? [];
   const forbiddenTableText = properties.forbidTableText ?? [];
+  const expectedRecords = properties.preserveRecords ?? [];
 
   for (const heading of expectedHeadings) {
     if (!headings.includes(heading)) errors.push(`Expected heading not found: ${heading}`);
@@ -46,6 +98,9 @@ export function evaluateSemanticProperties(sourceText, candidateText, properties
     }
   }
 
+  const records = evaluateRecordBoundaries(candidateText, expectedRecords);
+  errors.push(...records.errors);
+
   const integrity = compareTokens(extractTokens(sourceText), extractTokens(candidateText));
   for (const token of integrity.missing) errors.push(`Protected token missing: ${token}`);
 
@@ -57,10 +112,11 @@ export function evaluateSemanticProperties(sourceText, candidateText, properties
         (properties.minTables == null || tables.length >= properties.minTables) &&
         (properties.maxTables == null || tables.length <= properties.maxTables),
       preservation: preservedText.every((text) => candidateText.includes(text)),
+      records: records.ok,
       integrity: integrity.ok,
       ambiguity: !forbiddenTableText.some((text) => tables.some((table) => table.includes(text))),
     },
-    evidence: { headings, tableCount: tables.length },
+    evidence: { headings, tableCount: tables.length, recordLines: records.assigned },
     errors,
   };
 }

@@ -62,7 +62,16 @@
   },
   "ambiguous-structure-preservation": {
     "maxTables": 0,
-    "preserve": ["alpha-east\t12", "Do not start a new deployment while the previous job is still finalising.", "Status: pending", "RUN_42"],
+    "preserve": [
+      "Do not start a new deployment while the previous job is still finalising.",
+      "Status: pending",
+      "RUN_42"
+    ],
+    "preserveRecords": [
+      ["alpha-east", "12"],
+      ["bravo-west", "9"],
+      ["charlie-north", "6"]
+    ],
     "forbidTableText": ["Region", "Count"]
   }
 }

@@ -115,7 +115,18 @@ export async function inspectHealth({
     claudeReady: discovery.checks.claude,
     projectReady,
   });
-  return { ok: runtime.ok, runtime, discovery, agents };
+  const runtimeOk = runtime.ok;
+  const discoveryOk = discovery.ok;
+  const overallOk = runtimeOk && discoveryOk;
+  return {
+    ok: runtimeOk,
+    runtimeOk,
+    discoveryOk,
+    overallOk,
+    runtime,
+    discovery,
+    agents,
+  };
 }
 
 const AGENT_CATALOGUE = [

@@ -16,7 +16,7 @@ license: MIT
 compatibility: Requires Node.js 20+
 metadata:
   author: WolfMark
-  version: "0.2.1"
+  version: "0.2.2"
   display-name: WolfMarkDown
 ---
 
@@ -71,8 +71,10 @@ Pick exactly one.
 
 Before Clean, Compose, or Verify, run a lightweight health check: `node scripts/doctor.mjs --json`.
 
-- If **runtime** is healthy, continue. Do not run `npm ci`. Do not treat a missing global discovery link as a reason to reinstall.
-- If **runtime** dependencies are missing or the wrong version, run `node scripts/install.mjs` only as far as needed to repair runtime, then continue.
+- Decide local processing from `runtimeOk` only. If `runtimeOk` is true, continue. Do not use top-level `ok` or `overallOk` to decide whether Clean, Compose, or Verify may proceed.
+- `ok` and `overallOk` are overall Doctor health (runtime and discovery together). They may be false when discovery is unhealthy even though local processing is available.
+- `discoveryOk` is shared or project discovery only. An overall FAIL with `runtimeOk` true is a discovery finding, not a reason to stop local Clean, Compose, or Verify. Do not run `npm ci`. Do not treat a missing global discovery link as a reason to reinstall.
+- If `runtimeOk` is false because dependencies are missing or the wrong version, run `node scripts/install.mjs` only as far as needed to repair runtime, then continue.
 - A missing global link does not block project-local processing.
 
 The user should not have to copy shell commands. Do not ask them to copy shell commands.
@@ -92,7 +94,7 @@ Rerunning setup is idempotent. Do not reinstall healthy dependencies.
 
 Run `node scripts/doctor.mjs` (add `--json` when a machine-readable result is easier). Doctor does not mutate the install.
 
-Distinguish **runtime health** from **discovery health**. Report both.
+Distinguish **runtime health** from **discovery health**. Report Runtime, Discovery, and Overall. `ok` and `overallOk` match Overall/Result. Local processing still follows `runtimeOk`.
 
 ## Verify
 
@@ -143,6 +145,7 @@ Operation: Doctor
 Runtime: Pass|Fail
 Dependencies: Pass|Fail
 Global discovery: Pass|Fail
+Overall: PASS|FAIL
 Result: PASS|FAIL
 ```
 

@@ -16,6 +16,9 @@ async function main(argv) {
   }
   const home = process.env.WOLFMARKDOWN_HOME || process.env.HOME || homedir();
   const health = await inspectHealth({ home, canonicalDir: skillRoot });
+  const runtimeOk = Boolean(health.runtimeOk ?? health.runtime.ok);
+  const discoveryOk = Boolean(health.discoveryOk ?? health.discovery.ok);
+  const overallOk = Boolean(health.overallOk ?? (runtimeOk && discoveryOk));
   if (parsed.flags.json) {
     process.stdout.write(`${JSON.stringify(health, null, 2)}\n`);
   } else {
@@ -27,15 +30,21 @@ async function main(argv) {
       else if (agent.status === "Optional compatibility link missing") bits.push(agent.status);
       return `${agent.name}: ${bits.join(" / ")}`;
     });
-    const overallOk = Boolean(health.runtime.ok && health.discovery.ok);
+    const localProcessing = runtimeOk
+      ? "Local processing: Available (runtime healthy; discovery is not required for project-local work)"
+      : "Local processing: Unavailable (runtime is not healthy)";
     process.stdout.write(
       [
         "WolfMarkDown Doctor",
-        "Runtime",
+        `Runtime: ${pass(runtimeOk)}`,
+        `Discovery: ${pass(discoveryOk)}`,
+        `Overall: ${overallOk ? "PASS" : "FAIL"}`,
+        localProcessing,
+        "Runtime details",
         `Node.js: ${pass(Boolean(health.runtime.checks.node))}`,
         `Dependencies: ${pass(Boolean(health.runtime.checks.dependencies))}`,
         `Canonical skill: ${pass(Boolean(health.runtime.checks.skillDir && health.runtime.checks.skillMd))}`,
-        "Discovery",
+        "Discovery details",
         `Shared Agent Skills: ${health.discovery.checks.shared ? "Ready" : "Missing"}`,
         `Claude Code: ${health.discovery.checks.claude ? "Ready" : "Optional compatibility link missing"}`,
         "Agent Coverage",
@@ -47,7 +56,7 @@ async function main(argv) {
     const errors = [...health.runtime.errors, ...health.discovery.errors];
     if (errors.length > 0) process.stderr.write(`${errors.map((error) => `- ${error}`).join("\n")}\n`);
   }
-  return health.runtime.ok && health.discovery.ok ? 0 : 1;
+  return overallOk ? 0 : 1;
 }
 
 main(process.argv.slice(2)).then(

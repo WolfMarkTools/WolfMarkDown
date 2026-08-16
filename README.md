@@ -35,7 +35,7 @@ WolfMarkDown makes those decisions explicit and conservative. It repairs clear s
 | Repair semantic document structure | No | Yes |
 | Remove copied AI conversation scaffolding | No | Yes |
 | Rebuild malformed comparison tables | No | Yes |
-| Protect URLs, code, hashes, versions, and identifiers | No | Yes |
+| Check recognised protected-token classes against a source snapshot | No | Yes |
 | Verify GFM parsing and fence balance | No | Yes |
 | Run markdownlint before publishing | No | Yes |
 | Check idempotence | No | Yes |
@@ -188,7 +188,7 @@ Before formatting, the agent checks for flattened semantic structure. A document
 
 ### Semantic repair boundary
 
-The agent reconstructs headings, lists, tables, paragraphs, and sibling sections only when the source makes the structure clear. A headerless tab run is not automatically a table, a short sentence is not automatically a heading, and an isolated `Label: value` phrase is not automatically a list item. For long documents, the agent maintains a source map and reconciles the full outline, cross-section relationships, table boundaries, and protected values before publishing. If the source cannot be reviewed completely, it preserves uncertainty and reports the limit rather than guessing.
+The agent reconstructs headings, lists, tables, paragraphs, and sibling sections only when the source makes the structure clear. A headerless tab run is not automatically a table, a short sentence is not automatically a heading, and an isolated `Label: value` phrase is not automatically a list item. When an ambiguous row-like run must stay non-tabular, each record is kept in printer-stable Markdown such as a list item or its own paragraph. For long documents, the agent maintains a source map and reconciles the full outline, cross-section relationships, table boundaries, and protected values before publishing. If the source cannot be reviewed completely, it preserves uncertainty and reports the limit rather than guessing.
 
 ## Verification and quality boundary
 
@@ -196,34 +196,40 @@ WolfMarkDown PASS means the artifact passed the applicable deterministic checks:
 
 - the Markdown artifact passed formatting, parsing, lint, fence, and idempotence checks;
 - the agent made and reported source-grounded structural decisions;
-- protected technical content was preserved only when integrity was checked against an untouched source snapshot, as in Clean and Compose or with `--integrity-from`;
+- recognised protected-token classes were preserved only when integrity was checked against an untouched source snapshot, as in Clean and Compose or with `--integrity-from`;
 - failed Clean and Compose operations did not leave an unverified published result.
 
 Standalone Verify without an integrity source reports integrity as skipped. Its PASS does not prove that protected tokens were preserved.
 
 ### Protected details
 
-When an untouched source snapshot is available, integrity checks protect technical content including:
+When an untouched source snapshot is available, integrity checks the token classes the extractor actually recognises. That is a closed list, not a promise to protect every version, date, number, or identifier. The current classes are:
 
-- URLs, inline code, and fenced code;
-- public keys, signatures, hashes, versions, and identifiers;
-- filesystem paths and contextual environment variables;
-- dates, percentages, and currency values.
+- URLs, inline code, and fenced code bodies;
+- matched base58-shaped public keys and signatures, and hex hashes of 40 or more characters;
+- three-part semantic versions such as `1.2.3` and `v1.2.3-beta.1`;
+- filesystem paths and environment names/assignments that match the extractor;
+- ISO dates, numeric `dd/mm/yyyy` dates, percentages, and currency amounts;
+- matched camelCase and snake_case identifier shapes.
+
+It does not protect two-part versions such as `18.17`, month-name dates such as `May 2027`, or isolated integers. Matched identifier shapes can include incidental camelCase tokens.
 
 This is Markdown-quality evidence, not content approval. PASS does not establish factual correctness, completeness, currency, policy compliance, or authorisation to publish. It does not fact-check claims.
 
 Deterministic checks are proof of artifact properties. They are not a semantic oracle, and they do not replace the agent's responsibility to account for every clear source signal.
 
-### v0.2.1 release evidence
+### v0.2.2 release evidence
 
-- **82/82 Node tests pass.**
-- Executable semantic property checks cover headings, GFM tables, protected tokens, and ambiguous-table preservation.
+- **92/92 Node tests pass.**
+- Executable semantic property checks cover headings, GFM tables, recognised protected tokens, conservative record-boundary preservation, and invented-table rejection.
 - `skills-ref validate ./wolfmarkdown` passes.
 - Installer, Doctor, rollback, target-collision, integrity, and idempotence checks remain covered.
 
-### Historical external-plugin intake
+### External-plugin intake
 
-The `v0.1.1` Agent Plugins package passed GitHub Awesome Copilot's automated external-plugin intake. This is historical packaging evidence, not host acceptance evidence for v0.2.1.
+The immutable `v0.2.1` submission (`2323dd0f806f803dafd42e28a743d8ca7b6fd410`, [awesome-copilot#2676](https://github.com/github/awesome-copilot/issues/2676)) passed GitHub Awesome Copilot's complete automated external-plugin intake, including Agent Plugins specification compliance, Vally validation, a skill install smoke test, version matching, and immutable ref/SHA consistency. Human maintainer review remains pending. This is packaging evidence, not host acceptance, directory approval, or a claim that Awesome Copilot has accepted WolfMarkDown.
+
+The earlier `v0.1.1` package also passed automated intake. That remains historical packaging evidence.
 
 ## Architecture details
 
@@ -266,7 +272,7 @@ node wolfmarkdown/scripts/evaluate-semantic.mjs \
   source.md candidate.md
 ```
 
-The evaluator checks expected headings and table counts, protected-token preservation, and safety properties such as refusing to turn an ambiguous headerless run into a table. It does not infer or repair the candidate.
+The evaluator checks expected headings and table counts, recognised protected-token preservation, surviving record boundaries, and safety properties such as refusing to turn an ambiguous headerless run into a table. It does not infer or repair the candidate.
 
 ## Developer commands
 

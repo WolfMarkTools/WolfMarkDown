@@ -64,10 +64,12 @@ const generalSemanticCases = [
     signals: [/alpha-east\t12/u, /Status: pending/u, /RUN_42/u],
     assertions: [
       /ambiguous headerless run/u,
-      /do not create a table schema/u,
+      /do not create a table schema/iu,
+      /printer-stable Markdown boundary/u,
       /warning sentence/u,
       /not a repeated labelled group/u,
       /unresolved header ambiguity/u,
+      /literal tab character/u,
     ],
   },
 ];
@@ -135,6 +137,8 @@ test("semantic repair workflow requires source mapping and reconciliation", asyn
     /internal semantic handoff/u,
     /Do not manufacture structure/u,
     /without a recognisable header is not a GFM table/u,
+    /Printer-surviving record boundaries/u,
+    /survives Prettier/u,
   ]) {
     assert.match(guidance, assertion);
   }

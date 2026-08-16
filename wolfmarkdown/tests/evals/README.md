@@ -32,9 +32,7 @@ These cases require source-grounded semantic evidence and unresolved-ambiguity r
 
 Semantic PASS establishes Markdown-quality evidence only. It does not fact-check source claims, establish completeness or currency, or authorise publication.
 
-## Cases pending fresh-agent execution
-
-- ambiguous-structure-preservation: headerless tab runs, isolated warning sentences, and lone labels that must remain conservatively preserved
+The `ambiguous-structure-preservation` Node property check is executable: a conservative list or separated-paragraph candidate must pass, and an invented table must fail. A full host-agent run of that case remains optional evidence.
 
 ## Two-pass workflow forward test
 
@@ -46,4 +44,4 @@ Fresh-agent runs on 2026-08-15 used only the redesigned skill and raw synthetic 
 
 Each output also passed the deterministic verifier, protected-token integrity against its untouched fixture, and idempotence. Forward-test outputs remained in OS temporary storage and are not repository fixtures.
 
-The v0.2.1 Node suite exercises the evaluator with both a successful structural recovery and a failing invented-table candidate. A full agent run still requires a host-produced candidate and should report the host, model, source scope, and unresolved ambiguities alongside deterministic verification.
+The v0.2.2 Node suite exercises the evaluator with a successful structural recovery, a conservative ambiguous-structure candidate, and a failing invented-table candidate. A full agent run still requires a host-produced candidate and should report the host, model, source scope, and unresolved ambiguities alongside deterministic verification.

@@ -297,14 +297,6 @@ Semantic cases live in `wolfmarkdown/tests/evals/`. Cross-host acceptance inputs
 - The verifier proves Markdown artifact properties; it does not certify arbitrary prose or publication readiness.
 - Long-document repair depends on the agent retaining and reconciling its document ledger; incomplete source review must be reported rather than guessed.
 
-## Repository metadata
-
-Recommended GitHub repository topics:
-
-`ai-agents` `agent-skills` `markdown` `documentation` `claude-code` `codex` `cursor` `github-copilot`
-
-Topics should be configured in the GitHub repository settings. They are discoverability metadata, not compatibility evidence.
-
 ## Contributing
 
 Found a Markdown edge case WolfMarkDown should handle better? [Open an issue](https://github.com/WolfMarkTools/WolfMarkDown/issues).

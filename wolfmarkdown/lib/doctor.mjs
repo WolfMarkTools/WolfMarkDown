@@ -119,7 +119,7 @@ export async function inspectHealth({
   const discoveryOk = discovery.ok;
   const overallOk = runtimeOk && discoveryOk;
   return {
-    ok: runtimeOk,
+    ok: overallOk,
     runtimeOk,
     discoveryOk,
     overallOk,

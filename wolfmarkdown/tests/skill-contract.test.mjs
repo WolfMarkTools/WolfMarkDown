@@ -70,6 +70,8 @@ test("SKILL.md satisfies the WolfMarkDown contract", async () => {
   assert.match(text, /\*\*Compose\*\*/);
   assert.match(text, /not sufficient to trigger WolfMarkDown Compose/);
   assert.match(text, /doctor\.mjs/);
+  assert.match(text, /Decide local processing from `runtimeOk` only/);
+  assert.match(text, /Do not use top-level `ok` or `overallOk` to decide/);
   assert.match(text, /Operation: Setup/);
   assert.match(text, /Operation: Doctor/);
   assert.match(text, /Operation: Verify/);

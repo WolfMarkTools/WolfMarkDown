@@ -12,10 +12,7 @@ const triggers = [
   "Markdown formatting",
   "Markdown repair",
   "malformed Markdown",
-  "badly formatted research",
-  "AI-generated research cleanup",
   "copied agent conversation cleanup",
-  "documentation formatting",
   "malformed tables",
   ".md cleanup",
   "Markdown lint failures",
@@ -55,6 +52,9 @@ test("SKILL.md satisfies the WolfMarkDown contract", async () => {
     }
     assert.ok(text.includes(trigger), `missing trigger ${trigger}`);
   }
+  assert.doesNotMatch(text, /badly formatted research/);
+  assert.doesNotMatch(text, /AI-generated research cleanup/);
+  assert.doesNotMatch(text, /documentation formatting/);
   assert.match(text, /snapshot/i);
   assert.match(text, /--integrity-from/);
   assert.match(text, /Do not refresh the snapshot from the edited file/);

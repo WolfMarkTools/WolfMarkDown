@@ -52,7 +52,7 @@ Where the harness exposes Agent Skills as slash commands (Grok does), this skill
 | `/wolfmarkdown <file.md>`                        | Clean   |
 | `/wolfmarkdown` plus export or write wording     | Compose |
 
-Natural-language forms include Markdown cleanup, Markdown formatting, Markdown repair, format this Markdown, clean this Markdown, repair this Markdown, validate this Markdown, check this Markdown, malformed Markdown, badly formatted research, AI-generated research cleanup, copied agent conversation cleanup, documentation formatting, malformed tables, .md cleanup, Markdown lint failures, export as Markdown, export as a Markdown file, present as Markdown, write as Markdown, write a Markdown file, create a Markdown file, create a .md, save this as Markdown, save this as .md, install WolfMarkDown, set up WolfMarkDown, and WolfMarkDown doctor.
+Natural-language forms include Markdown cleanup, Markdown formatting, Markdown repair, format this Markdown, clean this Markdown, repair this Markdown, validate this Markdown, check this Markdown, malformed Markdown, copied agent conversation cleanup, malformed tables, .md cleanup, Markdown lint failures, export as Markdown, export as a Markdown file, present as Markdown, write as Markdown, write a Markdown file, create a Markdown file, create a .md, save this as Markdown, save this as .md, install WolfMarkDown, set up WolfMarkDown, and WolfMarkDown doctor.
 
 ## Intent
 

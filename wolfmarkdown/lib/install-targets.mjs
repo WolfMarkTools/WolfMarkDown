@@ -1,7 +1,7 @@
-import { access, lstat, mkdir, readFile, realpath, symlink, unlink } from "node:fs/promises";
-import { constants } from "node:fs";
+import { lstat, mkdir, realpath, symlink, unlink } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
+import { inspectDependencies } from "./dependencies.mjs";
 
 export function defaultDestination(home) {
   return join(home, ".agents", "skills", "wolfmarkdown");
@@ -75,26 +75,14 @@ export async function checkInstall({ home, canonicalDir }) {
       errors.push(`Destination exists and is not an owned WolfMarkDown link: ${target.destination}`);
     }
   }
-  const prettierEntry = join(canonicalDir, "node_modules", "prettier", "package.json");
-  try {
-    await access(prettierEntry, constants.F_OK);
-  } catch {
-    errors.push(`Dependencies are not installed in ${canonicalDir}. Run node scripts/install.mjs`);
-  }
+  const deps = await inspectDependencies(canonicalDir);
+  if (!deps.ok) errors.push(...deps.errors);
   return { ok: errors.length === 0, destination, links, errors };
 }
 
 async function dependenciesNeedRepair(canonicalDir) {
-  try {
-    const manifest = JSON.parse(await readFile(join(canonicalDir, "package.json"), "utf8"));
-    for (const [name, expected] of Object.entries(manifest.dependencies ?? {})) {
-      const installed = JSON.parse(await readFile(join(canonicalDir, "node_modules", name, "package.json"), "utf8"));
-      if (installed.version !== expected) return true;
-    }
-    return false;
-  } catch {
-    return true;
-  }
+  const deps = await inspectDependencies(canonicalDir);
+  return !deps.ok;
 }
 
 function installDependencies(canonicalDir, platform = process.platform) {

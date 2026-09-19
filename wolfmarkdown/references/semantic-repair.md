@@ -4,7 +4,9 @@ Use this workflow for Clean or Compose when source material has latent structure
 
 ## Pass 1: build a source map
 
-Read the complete source before editing. Inventory only signals actually present:
+Read the complete source before editing. Run `scripts/scaffold-markdown.mjs --json` for a deterministic inventory of headings, fences, lists, pipe runs, and recognised tokens. The scaffold does not classify Preserve/Restructure/Sanitise/Compose/Unresolved and must not be treated as a rewrite plan.
+
+Inventory only signals actually present:
 
 - title-like boundaries and their likely parent/sibling relationships;
 - table runs indicated by tabs, alignment, delimiters, or repeated row shape;

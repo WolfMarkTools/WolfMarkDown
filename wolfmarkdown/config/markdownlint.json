@@ -16,5 +16,8 @@
   "MD046": {
     "style": "fenced"
   },
-  "MD009": true
+  "MD009": true,
+  "MD025": {
+    "front_matter_title": ""
+  }
 }

@@ -39,4 +39,6 @@ For existing files: snapshot the untouched source first. If the result cannot pa
 
 For new files: write a temporary candidate. Publish to the destination only after PASS. Do not leave an unverified final file at the requested destination. Use OS temp storage. Do not commit snapshots or staging files.
 
-Use `lib/publish.mjs` helpers when they fit: `writeExistingIfValid`, `publishNewFile`, `restoreOriginal`.
+Use `lib/publish.mjs` helpers when they fit: `writeExistingIfValid`, `publishNewFile`, `restoreOriginal`. Those helpers write atomically, refuse to follow symlink destinations, and refuse to overwrite a file that changed after the snapshot was taken.
+
+Before publishing, run Verify with `--preview` and `--receipt` against the source snapshot. Do not publish or report PASS without both. The preview reports observable structure, scaffolding counts, and protected-token preservation. It does not judge whether a semantic decision is correct.

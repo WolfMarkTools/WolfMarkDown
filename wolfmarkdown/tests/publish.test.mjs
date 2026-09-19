@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -66,6 +66,46 @@ test("restoreOriginal writes the snapshot bytes back", async () => {
   await writeFile(target, "changed\n");
   await restoreOriginal(target, "original\n");
   assert.equal(await readFile(target, "utf8"), "original\n");
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("refuses to publish through a symlink", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-symlink-"));
+  const real = join(dir, "real.md");
+  const dest = join(dir, "dest.md");
+  await writeFile(real, "# Real\n");
+  await symlink(real, dest);
+  await assert.rejects(
+    publishNewFile(dest, "# Replacement\n", async () => ({ ok: true }), { replace: true }),
+    /symlink/i,
+  );
+  assert.equal(await readFile(real, "utf8"), "# Real\n");
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("refuses to update a symlink destination", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-symlink-update-"));
+  const real = join(dir, "real.md");
+  const dest = join(dir, "dest.md");
+  await writeFile(real, "# Original\n");
+  await symlink(real, dest);
+  await assert.rejects(writeExistingIfValid(dest, "# Original\n", "# Replacement\n", async () => ({ ok: true })), /symlink/i);
+  assert.equal(await readFile(real, "utf8"), "# Original\n");
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("refuses to overwrite when the destination changed during verification", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-concurrent-"));
+  const target = join(dir, "notes.md");
+  const original = "# Original\n\nKeep this.\n";
+  await writeFile(target, original);
+  const outcome = await writeExistingIfValid(target, original, "# Replacement\n", async () => {
+    await writeFile(target, "# Concurrent edit\n");
+    return { ok: true };
+  });
+  assert.equal(outcome.ok, false);
+  assert.ok(outcome.errors.some((error) => /changed during verification/i.test(error)));
+  assert.equal(await readFile(target, "utf8"), "# Concurrent edit\n");
   await rm(dir, { recursive: true, force: true });
 });
 

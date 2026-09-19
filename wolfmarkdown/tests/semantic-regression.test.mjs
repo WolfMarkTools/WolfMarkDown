@@ -150,6 +150,8 @@ test("README distinguishes verified Markdown quality from content approval", asy
   assert.match(readme, /agent publishing workflow/u);
   assert.match(readme, /does not fact-check claims/u);
   assert.match(readme, /Markdown-quality evidence, not content approval/u);
+  assert.match(readme, /npx skills add WolfMarkTools\/WolfMarkDown/u);
+  assert.match(readme, /npx skills update wolfmarkdown/u);
 });
 
 for (const semanticCase of generalSemanticCases) {

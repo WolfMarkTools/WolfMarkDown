@@ -108,6 +108,24 @@ test("checkInstall succeeds when only the required shared link exists", async ()
   });
 });
 
+test("checkInstall fails when a runtime dependency is missing", async () => {
+  await withHome(async (home) => {
+    const fake = join(home, "fake-skill");
+    await mkdir(join(fake, "node_modules", "prettier"), { recursive: true });
+    await writeFile(
+      join(fake, "package.json"),
+      JSON.stringify({ dependencies: { prettier: "3.9.6", markdownlint: "0.41.1" } }),
+    );
+    await writeFile(join(fake, "node_modules", "prettier", "package.json"), JSON.stringify({ version: "3.9.6" }));
+    const shared = join(home, ".agents", "skills", "wolfmarkdown");
+    await mkdir(join(home, ".agents", "skills"), { recursive: true });
+    await symlink(fake, shared);
+    const result = await checkInstall({ home, canonicalDir: fake });
+    assert.equal(result.ok, false);
+    assert.ok(result.errors.some((error) => /markdownlint/i.test(error)));
+  });
+});
+
 test("Windows binary detection includes cmd and bat shims", () => {
   assert.deepEqual(candidateBinaries("claude", "win32"), ["claude", "claude.exe", "claude.cmd", "claude.bat"]);
   assert.deepEqual(candidateBinaries("claude", "darwin"), ["claude", "claude.exe"]);

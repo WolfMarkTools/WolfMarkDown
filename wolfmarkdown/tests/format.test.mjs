@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import { formatMarkdown } from "../lib/format.mjs";
-import { readFixture } from "./helpers.mjs";
+import { readFixture, skillRoot } from "./helpers.mjs";
 
 test("already-clean documents are a no-op after formatting", async () => {
   const input = await readFixture("already-clean.md");
@@ -51,4 +55,46 @@ test("formatter preserves speaker labels in a transcript", async () => {
   const formatted = await formatMarkdown(await readFixture("legitimate-transcript.md"));
   assert.match(formatted, /Interviewer:/);
   assert.match(formatted, /Support:/);
+});
+
+test("format-markdown.mjs writes atomically and refuses symlink destinations", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-format-"));
+  const file = join(dir, "notes.md");
+  await writeFile(file, "# Title\n\nHello   \n");
+  const ran = spawnSync(process.execPath, [join(skillRoot, "scripts", "format-markdown.mjs"), file], {
+    encoding: "utf8",
+  });
+  assert.equal(ran.status, 0, ran.stderr);
+  assert.equal(await readFile(file, "utf8"), await formatMarkdown("# Title\n\nHello   \n"));
+
+  const real = join(dir, "real.md");
+  const link = join(dir, "link.md");
+  await writeFile(real, "# Title\n\nHello   \n");
+  await symlink(real, link);
+  const blocked = spawnSync(process.execPath, [join(skillRoot, "scripts", "format-markdown.mjs"), link], {
+    encoding: "utf8",
+  });
+  assert.equal(blocked.status, 1);
+  assert.match(blocked.stderr, /symlink/i);
+  assert.equal(await readFile(real, "utf8"), "# Title\n\nHello   \n");
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("format-markdown.mjs reads standard input with --stdout", async () => {
+  const ran = spawnSync(
+    process.execPath,
+    [join(skillRoot, "scripts", "format-markdown.mjs"), "-", "--stdout"],
+    { encoding: "utf8", input: "# Title\n\nHello   \n" },
+  );
+  assert.equal(ran.status, 0, ran.stderr);
+  assert.equal(ran.stdout, await formatMarkdown("# Title\n\nHello   \n"));
+});
+
+test("format-markdown.mjs refuses to write standard input without --stdout or --check", () => {
+  const ran = spawnSync(process.execPath, [join(skillRoot, "scripts", "format-markdown.mjs"), "-"], {
+    encoding: "utf8",
+    input: "# Title\n\nHello   \n",
+  });
+  assert.equal(ran.status, 1);
+  assert.match(ran.stderr, /Standard input requires --stdout or --check/);
 });

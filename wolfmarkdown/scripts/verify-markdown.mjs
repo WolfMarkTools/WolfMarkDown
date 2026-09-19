@@ -3,7 +3,7 @@
 import { collectMarkdownTargets, mapLimit } from "../lib/batch.mjs";
 import { parseFlags, printHelp } from "../lib/cli.mjs";
 import { previewDocuments } from "../lib/preview.mjs";
-import { atomicWriteFile } from "../lib/publish.mjs";
+import { atomicWriteFile, assertDistinctPath } from "../lib/publish.mjs";
 import {
   QUALITY_BOUNDARY,
   formatErrors,
@@ -83,6 +83,16 @@ async function main(argv) {
   if (parsed.flags.integrityFrom && files.length !== 1) {
     throw new Error("--integrity-from requires exactly one Markdown file.");
   }
+  if (parsed.flags.receipt) {
+    if (isStdinPath(parsed.flags.receipt)) {
+      throw new Error("--receipt cannot write standard input.");
+    }
+    await assertDistinctPath(
+      parsed.flags.receipt,
+      [...files, parsed.flags.integrityFrom],
+      `--receipt would overwrite a Markdown source: ${parsed.flags.receipt}`,
+    );
+  }
 
   const receipts = await mapLimit(files, CONCURRENCY, (file) =>
     verifyOne(file, { integrityFrom: parsed.flags.integrityFrom, preview: Boolean(parsed.flags.preview) }),
@@ -104,10 +114,7 @@ async function main(argv) {
   if (receipts.length === 1) {
     printTextReceipt(receipts[0]);
   } else {
-    for (const receipt of receipts) {
-      process.stdout.write(`${receipt.files.candidate.path}: ${receipt.ok ? "PASS" : "FAIL"}\n`);
-      if (!receipt.ok) process.stderr.write(`${formatErrors(receipt.errors, receipt.issues)}\n`);
-    }
+    for (const receipt of receipts) printTextReceipt(receipt);
   }
   process.stdout.write(`${QUALITY_BOUNDARY}\n`);
   process.stdout.write(`Result: ${ok ? "PASS" : "FAIL"}\n`);

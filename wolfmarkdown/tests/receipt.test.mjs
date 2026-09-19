@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -127,6 +127,22 @@ test("verify --json prints a receipt and batch results keep per-file evidence", 
   await rm(dir, { recursive: true, force: true });
 });
 
+test("batch verify text output includes preview for each file", async () => {
+  const formatted = await formatMarkdown("# Title\n\nKeep this.\n");
+  const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-batch-text-"));
+  await writeFile(join(dir, "a.md"), formatted);
+  await writeFile(join(dir, "b.md"), formatted);
+  const ran = spawnSync(
+    process.execPath,
+    [join(skillRoot, "scripts", "verify-markdown.mjs"), dir, "--preview"],
+    { encoding: "utf8" },
+  );
+  assert.equal(ran.status, 0, ran.stderr);
+  assert.match(ran.stdout, /Preview:/);
+  assert.equal((ran.stdout.match(/Preview:/g) ?? []).length, 2);
+  await rm(dir, { recursive: true, force: true });
+});
+
 test("verify-markdown.mjs reads standard input", async () => {
   const formatted = await formatMarkdown("# Title\n\nKeep this.\n");
   const ran = spawnSync(
@@ -156,4 +172,43 @@ test("verify-markdown.mjs refuses stdin mixed with files or as --integrity-from"
   );
   assert.equal(integrity.status, 1);
   assert.match(integrity.stderr, /cannot read standard input/);
+});
+
+test("verify-markdown.mjs refuses a receipt that would overwrite the candidate or integrity source", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-receipt-collision-"));
+  const formatted = await formatMarkdown("# Title\n\nKeep this.\n");
+  const candidate = join(dir, "notes.md");
+  const alias = join(dir, "alias.md");
+  const source = join(dir, "source.md");
+  await writeFile(candidate, formatted);
+  await writeFile(source, formatted);
+  await symlink(candidate, alias);
+
+  const sameFile = spawnSync(
+    process.execPath,
+    [join(skillRoot, "scripts", "verify-markdown.mjs"), candidate, "--receipt", candidate],
+    { encoding: "utf8" },
+  );
+  assert.equal(sameFile.status, 1);
+  assert.match(sameFile.stderr, /overwrite a Markdown source/);
+  assert.equal(await readFile(candidate, "utf8"), formatted);
+
+  const sameAlias = spawnSync(
+    process.execPath,
+    [join(skillRoot, "scripts", "verify-markdown.mjs"), candidate, "--receipt", alias],
+    { encoding: "utf8" },
+  );
+  assert.equal(sameAlias.status, 1);
+  assert.match(sameAlias.stderr, /overwrite a Markdown source/);
+  assert.equal(await readFile(candidate, "utf8"), formatted);
+
+  const sameSource = spawnSync(
+    process.execPath,
+    [join(skillRoot, "scripts", "verify-markdown.mjs"), candidate, "--integrity-from", source, "--receipt", source],
+    { encoding: "utf8" },
+  );
+  assert.equal(sameSource.status, 1);
+  assert.match(sameSource.stderr, /overwrite a Markdown source/);
+  assert.equal(await readFile(source, "utf8"), formatted);
+  await rm(dir, { recursive: true, force: true });
 });

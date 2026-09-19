@@ -1,20 +1,21 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { inferOutputPath, kebabFileName } from "../lib/output-path.mjs";
-import { publishNewFile, restoreOriginal, writeExistingIfValid } from "../lib/publish.mjs";
+import { publishNewFile, replaceInto, restoreOriginal, writeExistingIfValid } from "../lib/publish.mjs";
 
 test("failed existing-file update restores the exact original", async () => {
   const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-publish-"));
   const target = join(dir, "notes.md");
   const original = "# Original\n\nKeep this.\n";
+  const candidate = "# Broken\n\n```js\nconst x = 1;\n";
   await writeFile(target, original);
-  const outcome = await writeExistingIfValid(target, original, "# Broken\n\n```js\nconst x = 1;\n", async () => ({
-    ok: false,
-    errors: ["forced failure"],
-  }));
+  const outcome = await writeExistingIfValid(target, original, candidate, async () => {
+    await writeFile(target, candidate);
+    return { ok: false, errors: ["forced failure"] };
+  });
   assert.equal(outcome.ok, false);
   assert.equal(await readFile(target, "utf8"), original);
   await rm(dir, { recursive: true, force: true });
@@ -69,6 +70,20 @@ test("restoreOriginal writes the snapshot bytes back", async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
+test("refuses to write through a symlink ancestor", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-ancestor-"));
+  const realDir = join(dir, "real");
+  const linkedDir = join(dir, "linked");
+  await mkdir(realDir);
+  await symlink(realDir, linkedDir);
+  const dest = join(linkedDir, "notes.md");
+  await assert.rejects(
+    publishNewFile(dest, "# Replacement\n", async () => ({ ok: true }), { replace: true }),
+    /symlink/i,
+  );
+  await rm(dir, { recursive: true, force: true });
+});
+
 test("refuses to publish through a symlink", async () => {
   const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-symlink-"));
   const real = join(dir, "real.md");
@@ -106,6 +121,85 @@ test("refuses to overwrite when the destination changed during verification", as
   assert.equal(outcome.ok, false);
   assert.ok(outcome.errors.some((error) => /changed during verification/i.test(error)));
   assert.equal(await readFile(target, "utf8"), "# Concurrent edit\n");
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("failed existing-file update does not restore over a concurrent edit", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-concurrent-fail-"));
+  const target = join(dir, "notes.md");
+  const original = "# Original\n\nKeep this.\n";
+  await writeFile(target, original);
+  const outcome = await writeExistingIfValid(target, original, "# Broken\n", async () => {
+    await writeFile(target, "# Concurrent edit\n");
+    return { ok: false, errors: ["forced failure"] };
+  });
+  assert.equal(outcome.ok, false);
+  assert.ok(outcome.errors.some((error) => /changed during verification/i.test(error)));
+  assert.equal(await readFile(target, "utf8"), "# Concurrent edit\n");
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("replace authorisation refuses to overwrite a concurrent edit", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-replace-concurrent-"));
+  const dest = join(dir, "existing.md");
+  await writeFile(dest, "# Unrelated\n");
+  const outcome = await publishNewFile(dest, "# Replacement\n", async () => {
+    await writeFile(dest, "# Concurrent edit\n");
+    return { ok: true };
+  }, { replace: true });
+  assert.equal(outcome.ok, false);
+  assert.ok(outcome.errors.some((error) => /changed during verification/i.test(error)));
+  assert.equal(await readFile(dest, "utf8"), "# Concurrent edit\n");
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("Windows replace restores the original if the retry rename fails", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-win-replace-"));
+  const dest = join(dir, "notes.md");
+  const tmp = join(dir, "notes.tmp");
+  await writeFile(dest, "original\n");
+  await writeFile(tmp, "new\n");
+  let attempts = 0;
+  await assert.rejects(
+    replaceInto(tmp, dest, {
+      platform: "win32",
+      renameFn: async (from, to) => {
+        attempts += 1;
+        if (attempts === 1 || attempts === 3) {
+          const error = new Error("EPERM");
+          error.code = "EPERM";
+          throw error;
+        }
+        return rename(from, to);
+      },
+    }),
+  );
+  assert.equal(await readFile(dest, "utf8"), "original\n");
+  assert.equal(await readFile(tmp, "utf8"), "new\n");
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("Windows replace retries through a backup instead of deleting the destination", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-win-retry-"));
+  const dest = join(dir, "notes.md");
+  const tmp = join(dir, "notes.tmp");
+  await writeFile(dest, "original\n");
+  await writeFile(tmp, "new\n");
+  let attempts = 0;
+  await replaceInto(tmp, dest, {
+    platform: "win32",
+    renameFn: async (from, to) => {
+      attempts += 1;
+      if (attempts === 1) {
+        const error = new Error("EPERM");
+        error.code = "EPERM";
+        throw error;
+      }
+      return rename(from, to);
+    },
+  });
+  assert.equal(await readFile(dest, "utf8"), "new\n");
+  await assert.rejects(readFile(tmp, "utf8"));
   await rm(dir, { recursive: true, force: true });
 });
 

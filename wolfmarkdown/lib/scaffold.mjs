@@ -12,7 +12,8 @@ const LIST_LIKE = /^(?:[-*+]|\d{1,9}[.)])\s|^>|^#{1,6}\s/;
 
 function plainText(node) {
   if (!node) return "";
-  if (node.type === "text") return node.value;
+  if (node.type === "text" || node.type === "inlineCode") return node.value ?? "";
+  if (node.type === "image") return node.alt ?? "";
   if (!node.children) return "";
   return node.children.map((child) => plainText(child)).join("");
 }

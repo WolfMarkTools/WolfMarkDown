@@ -48,6 +48,12 @@ function cleanToken(value) {
   return value?.replace(/[.,;:]+$/u, "") ?? "";
 }
 
+function addExact(index, className, value) {
+  if (!value) return;
+  index.tokens.add(value);
+  index.classes[className].add(value);
+}
+
 function add(index, className, value) {
   const token = cleanToken(value);
   if (!token) return;
@@ -91,13 +97,13 @@ export function extractTokenIndex(text) {
   const { tree } = parseMarkdown(text);
   visit(tree, (node) => {
     if (node.type === "inlineCode" && node.value) {
-      add(index, "inlineCode", node.value);
+      addExact(index, "inlineCode", node.value);
       extractRegexClasses(index, node.value);
     } else if (node.type === "code" && node.value) {
-      add(index, "fencedCode", node.value.replace(/\n$/u, ""));
+      addExact(index, "fencedCode", node.value.replace(/\n$/u, ""));
       extractRegexClasses(index, node.value);
     } else if (node.type === "link" && node.url) {
-      add(index, "url", node.url);
+      addExact(index, "url", node.url);
     } else if (node.type === "text" && node.value) {
       extractRegexClasses(index, node.value);
     }

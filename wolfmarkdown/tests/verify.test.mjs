@@ -141,3 +141,9 @@ test("document-level indented fence examples are not treated as unclosed fences"
   const result = assertFencesBalanced(markdown);
   assert.equal(result.ok, true, result.errors.join("\n"));
 });
+
+test("fences indented more than three spaces past list content are not fences", () => {
+  const markdown = ["# Title", "", "- item", "        ```js", "        const x = 1;", ""].join("\n");
+  const result = assertFencesBalanced(markdown);
+  assert.equal(result.ok, true, result.errors.join("\n"));
+});

@@ -27,6 +27,11 @@ test("documentScaffold inventories headings, fences, and pipe runs without rewri
   assert.equal(scaffold.hash.length, 64);
 });
 
+test("documentScaffold heading text includes inline code and image alt", () => {
+  const scaffold = documentScaffold("# Use `relay_v2` and ![diagram](chart.png)\n\nBody.\n");
+  assert.equal(scaffold.headings[0]?.text, "Use relay_v2 and diagram");
+});
+
 test("scaffold-markdown.mjs --json reads standard input", () => {
   const ran = spawnSync(
     process.execPath,

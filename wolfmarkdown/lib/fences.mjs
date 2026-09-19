@@ -1,6 +1,5 @@
 const OPEN = /^(\s*)(`{3,}|~{3,})(.*)$/;
 const CLOSE = /^(\s*)(`{3,}|~{3,})[ \t]*$/;
-const LIST_ITEM = /^(?:\s*)(?:[-*+]|\d{1,9}[.)])(?:[ \t]+|$)/;
 
 function leadingIndent(line) {
   let indent = 0;
@@ -21,15 +20,34 @@ function openingFence(line) {
   return { char: marker[0], length: marker.length, indent: leadingIndent(line) };
 }
 
+function columnWidth(text, start = 0) {
+  let width = start;
+  for (const char of text) {
+    if (char === "\t") width += 4 - (width % 4);
+    else width += 1;
+  }
+  return width;
+}
+
+function listContentIndent(line) {
+  const match = line.match(/^(\s*)([-*+]|\d{1,9}[.)])([ \t]*)/);
+  if (!match) return null;
+  const markerStart = columnWidth(match[1]);
+  const afterMarker = markerStart + match[2].length;
+  const padding = match[3].length === 0 ? 1 : columnWidth(match[3], afterMarker) - afterMarker;
+  return afterMarker + padding;
+}
+
 function fenceAllowedAt(lines, index) {
   const indent = leadingIndent(lines[index]);
   if (indent <= 3) return true;
   for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
     const previous = lines[cursor];
     if (previous.trim() === "") continue;
-    const previousIndent = leadingIndent(previous);
-    if (previousIndent < indent) return LIST_ITEM.test(previous);
-    if (LIST_ITEM.test(previous) && previousIndent < indent) return true;
+    if (leadingIndent(previous) >= indent) continue;
+    const contentIndent = listContentIndent(previous);
+    if (contentIndent == null) return false;
+    return indent <= contentIndent + 3;
   }
   return false;
 }

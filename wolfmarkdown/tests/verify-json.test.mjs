@@ -35,4 +35,8 @@ test("verify-markdown.mjs --json prints machine-readable output", async () => {
   assert.equal(body.checks.prettier, "pass");
   assert.equal(body.checks.integrity, "skip");
   assert.deepEqual(body.errors, []);
+  assert.equal(typeof body.qualityBoundary, "string");
+  assert.equal(body.files.candidate.hash.length, 64);
+  assert.ok(Array.isArray(body.issues));
+  assert.ok(Array.isArray(body.warnings));
 });

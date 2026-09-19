@@ -3,11 +3,13 @@ import { parse as parseYaml } from "yaml";
 import { visit } from "unist-util-visit";
 import { assertFencesBalanced, lineFenceStates } from "./fences.mjs";
 import { formatMarkdown } from "./format.mjs";
-import { compareTokens, extractTokens } from "./integrity.mjs";
+import { compareTokens, extractTokens, integrityCoverage } from "./integrity.mjs";
+import { createIssue } from "./issues.mjs";
 import { parseMarkdown } from "./parse.mjs";
 import { loadMarkdownlintConfig } from "./paths.mjs";
 
 const DELIMITER = /^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$/;
+const NON_TABLE_PIPE = /^(?:[-*+]|\d{1,9}[.)])\s|^>|^#{1,6}\s/;
 
 function splitUnescapedPipes(text) {
   const parts = [];
@@ -37,9 +39,9 @@ export function cells(line) {
   return splitUnescapedPipes(withoutEnd).map((cell) => cell.trim());
 }
 
-function sourceTableErrors(text) {
+function sourceTableIssues(text) {
   const { lines, inside } = lineFenceStates(text);
-  const errors = [];
+  const issues = [];
   let block = [];
 
   const flush = () => {
@@ -47,11 +49,14 @@ function sourceTableErrors(text) {
     const hasDelimiter = block.some((entry) => DELIMITER.test(entry.line));
     if (block.length >= 2 || hasDelimiter) {
       const counts = block.filter((entry) => !DELIMITER.test(entry.line)).map((entry) => cells(entry.line).length);
+      const line = block[0].number;
       if (!hasDelimiter) {
-        errors.push(`Table-like block starting on line ${block[0].number} is missing a delimiter row.`);
+        issues.push(
+          createIssue("tables", `Table-like block starting on line ${line} is missing a delimiter row.`, { line }),
+        );
       }
       if (counts.length > 0 && counts.some((count) => count !== counts[0])) {
-        errors.push(`Table starting on line ${block[0].number} has inconsistent cell counts.`);
+        issues.push(createIssue("tables", `Table starting on line ${line} has inconsistent cell counts.`, { line }));
       }
     }
     block = [];
@@ -59,83 +64,99 @@ function sourceTableErrors(text) {
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
-    if (inside[index] || !line.includes("|")) {
+    if (inside[index] || !line.includes("|") || NON_TABLE_PIPE.test(line.trimStart())) {
       flush();
       continue;
     }
     block.push({ line, number: index + 1 });
   }
   flush();
-  return errors;
+  return issues;
 }
 
-function headingErrors(tree) {
-  const errors = [];
+function headingIssues(tree) {
+  const issues = [];
   let previous = null;
   visit(tree, "heading", (node) => {
     if (previous != null && node.depth > previous + 1) {
-      errors.push(`Heading level skips from h${previous} to h${node.depth}.`);
+      issues.push(
+        createIssue("headings", `Heading level skips from h${previous} to h${node.depth}.`, {
+          line: node.position?.start?.line ?? null,
+        }),
+      );
     }
     previous = node.depth;
   });
-  return errors;
+  return issues;
 }
 
-function astTableErrors(tree) {
-  const errors = [];
+function astTableIssues(tree) {
+  const issues = [];
   visit(tree, "table", (node) => {
     const counts = node.children.map((row) => row.children.length);
     if (counts.some((count) => count !== counts[0])) {
-      errors.push("GFM table has inconsistent cell counts.");
+      issues.push(
+        createIssue("tables", "GFM table has inconsistent cell counts.", { line: node.position?.start?.line ?? null }),
+      );
     }
   });
-  return errors;
+  return issues;
 }
 
-function frontmatterErrors(text) {
+function frontmatterIssues(text) {
   if (!text.startsWith("---\n") && !text.startsWith("---\r\n")) return [];
   const rest = text.startsWith("---\r\n") ? text.slice(5) : text.slice(4);
   const closer = rest.search(/\r?\n---(?:\r?\n|$)/);
-  if (closer === -1) return ["YAML frontmatter is not closed."];
+  if (closer === -1) return [createIssue("frontmatter", "YAML frontmatter is not closed.")];
   try {
     parseYaml(rest.slice(0, closer));
   } catch (error) {
-    return [`YAML frontmatter does not parse: ${error.message}`];
+    return [createIssue("frontmatter", `YAML frontmatter does not parse: ${error.message}`)];
   }
   return [];
 }
 
-function whitespaceErrors(text) {
-  const errors = [];
+function whitespaceIssues(text) {
+  const issues = [];
   const lines = text.split("\n");
   lines.forEach((line, index) => {
     const trailing = line.match(/[ \t]+$/u);
     if (trailing && trailing[0] !== "  ") {
-      errors.push(`Trailing whitespace on line ${index + 1}.`);
+      issues.push(createIssue("whitespace", `Trailing whitespace on line ${index + 1}.`, { line: index + 1 }));
     }
   });
   if (/\n{4,}/u.test(text)) {
-    errors.push("Document contains three or more consecutive blank lines.");
+    issues.push(createIssue("whitespace", "Document contains three or more consecutive blank lines."));
   }
   if (!text.endsWith("\n")) {
-    errors.push("Document must end with exactly one newline.");
+    issues.push(createIssue("whitespace", "Document must end with exactly one newline."));
   } else if (text.endsWith("\n\n")) {
-    errors.push("Document must end with exactly one newline.");
+    issues.push(createIssue("whitespace", "Document must end with exactly one newline."));
   }
-  return errors;
+  return issues;
 }
 
-function markdownlintErrors(text) {
+function markdownlintIssues(text) {
   const report = markdownlintSync({
     strings: { document: text },
     config: loadMarkdownlintConfig(),
     resultVersion: 3,
   });
   const findings = report.document ?? [];
-  return findings.map((item) => `markdownlint ${item.ruleNames[0]} on line ${item.lineNumber}: ${item.ruleDescription}`);
+  return findings.map((item) =>
+    createIssue("markdownlint", `markdownlint ${item.ruleNames[0]} on line ${item.lineNumber}: ${item.ruleDescription}`, {
+      line: item.lineNumber,
+    }),
+  );
+}
+
+function elapsedMs(started) {
+  return Math.round(performance.now() - started);
 }
 
 export async function verifyMarkdown(text, { integrityFromText } = {}) {
+  const started = performance.now();
+  const timings = {};
   const checks = {
     parse: false,
     prettier: false,
@@ -148,51 +169,71 @@ export async function verifyMarkdown(text, { integrityFromText } = {}) {
     integrity: integrityFromText == null ? null : false,
     idempotence: false,
   };
-  const errors = [];
+  const issues = [];
 
+  const parseStarted = performance.now();
   try {
     const { tree } = parseMarkdown(text);
     checks.parse = true;
-    const heading = headingErrors(tree);
-    const tables = [...astTableErrors(tree), ...sourceTableErrors(text)];
+    const heading = headingIssues(tree);
+    const tables = [...astTableIssues(tree), ...sourceTableIssues(text)];
     checks.headings = heading.length === 0;
     checks.tables = tables.length === 0;
-    errors.push(...heading, ...tables);
+    issues.push(...heading, ...tables);
   } catch (error) {
-    errors.push(`Markdown did not parse: ${error.message}`);
+    issues.push(createIssue("parse", `Markdown did not parse: ${error.message}`));
   }
+  timings.parseMs = elapsedMs(parseStarted);
 
   const fences = assertFencesBalanced(text);
   checks.fences = fences.ok;
-  errors.push(...fences.errors);
+  if (!fences.ok) {
+    issues.push(createIssue("fences", fences.message, { line: fences.openLine }));
+  }
 
-  const frontmatter = frontmatterErrors(text);
+  const frontmatter = frontmatterIssues(text);
   checks.frontmatter = frontmatter.length === 0;
-  errors.push(...frontmatter);
+  issues.push(...frontmatter);
 
-  const whitespace = whitespaceErrors(text);
+  const whitespace = whitespaceIssues(text);
   checks.whitespace = whitespace.length === 0;
-  errors.push(...whitespace);
+  issues.push(...whitespace);
 
+  const prettierStarted = performance.now();
   const formatted = await formatMarkdown(text);
   checks.prettier = formatted === text;
-  if (!checks.prettier) errors.push("Prettier formatting check failed.");
+  if (!checks.prettier) issues.push(createIssue("prettier", "Prettier formatting check failed."));
+  timings.prettierMs = elapsedMs(prettierStarted);
 
-  const lint = markdownlintErrors(text);
+  const lintStarted = performance.now();
+  const lint = markdownlintIssues(text);
   checks.markdownlint = lint.length === 0;
-  errors.push(...lint);
+  issues.push(...lint);
+  timings.markdownlintMs = elapsedMs(lintStarted);
 
   const twice = await formatMarkdown(formatted);
   checks.idempotence = twice === formatted;
-  if (!checks.idempotence) errors.push("Formatter is not idempotent.");
+  if (!checks.idempotence) issues.push(createIssue("idempotence", "Formatter is not idempotent."));
 
+  const coverageSource = integrityFromText ?? text;
   if (integrityFromText != null) {
+    const integrityStarted = performance.now();
     const comparison = compareTokens(extractTokens(integrityFromText), text);
     checks.integrity = comparison.ok;
     for (const token of comparison.missing) {
-      errors.push(`Protected token missing: ${token}`);
+      issues.push(createIssue("integrity", `Protected token missing: ${token}`));
     }
+    timings.integrityMs = elapsedMs(integrityStarted);
   }
 
-  return { ok: errors.length === 0, checks, errors };
+  timings.totalMs = elapsedMs(started);
+  const errors = issues.map((issue) => issue.message);
+  return {
+    ok: issues.length === 0,
+    checks,
+    errors,
+    issues,
+    integrityCoverage: integrityCoverage(coverageSource, { checked: integrityFromText != null }),
+    timings,
+  };
 }

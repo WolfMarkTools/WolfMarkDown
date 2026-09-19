@@ -19,54 +19,101 @@ const HOME_OR_REL_PATH_RE = /(?:~|\.{1,2})\/[^\s)`'"]+/g;
 const ABS_PATH_RE = /(?:^|[\s(`])(\/(?:[A-Za-z0-9._-]+\/)+[A-Za-z0-9._-]+)/g;
 const WIN_ABS_PATH_RE = /(?:^|[\s(`])([A-Za-z]:\\[^\s)`'"]+)/g;
 const WIN_FWD_PATH_RE = /(?:^|[\s(`])([A-Za-z]:\/(?:[A-Za-z0-9._-]+\/)+[A-Za-z0-9._-]+)/g;
+const TWO_PART_VERSION_RE = /(?<![\d.])v?\d+\.\d+(?!\.\d)/g;
+const MONTH_NAME_DATE_RE =
+  /\b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}\b/g;
 
-function addAll(text, pattern, tokens, pick = (match) => match[0]) {
-  for (const match of text.matchAll(pattern)) {
-    const value = pick(match)?.replace(/[.,;:]+$/u, "");
-    if (value) tokens.add(value);
-  }
+export const TOKEN_CLASS_NAMES = [
+  "url",
+  "inlineCode",
+  "fencedCode",
+  "semver",
+  "hex",
+  "base58",
+  "isoDate",
+  "numericDate",
+  "percent",
+  "currency",
+  "path",
+  "env",
+  "camelCase",
+  "snakeCase",
+];
+
+function emptyClasses() {
+  return Object.fromEntries(TOKEN_CLASS_NAMES.map((name) => [name, new Set()]));
+}
+
+function cleanToken(value) {
+  return value?.replace(/[.,;:]+$/u, "") ?? "";
+}
+
+function addExact(index, className, value) {
+  if (!value) return;
+  index.tokens.add(value);
+  index.classes[className].add(value);
+}
+
+function add(index, className, value) {
+  const token = cleanToken(value);
+  if (!token) return;
+  index.tokens.add(token);
+  index.classes[className].add(token);
+}
+
+function addAll(index, text, pattern, className, pick = (match) => match[0]) {
+  for (const match of text.matchAll(pattern)) add(index, className, pick(match));
 }
 
 export function extractFromText(text, tokens = new Set()) {
-  addAll(text, URL_RE, tokens);
-  addAll(text, VERSION_RE, tokens);
-  addAll(text, HEX_RE, tokens);
-  addAll(text, BASE58_SIG_RE, tokens);
-  addAll(text, BASE58_KEY_RE, tokens);
-  addAll(text, ISO_DATE_RE, tokens);
-  addAll(text, UK_DATE_RE, tokens);
-  addAll(text, PERCENT_RE, tokens);
-  addAll(text, CURRENCY_RE, tokens);
-  addAll(text, HOME_OR_REL_PATH_RE, tokens);
-  addAll(text, ABS_PATH_RE, tokens, (match) => match[1]);
-  addAll(text, WIN_ABS_PATH_RE, tokens, (match) => match[1]);
-  addAll(text, WIN_FWD_PATH_RE, tokens, (match) => match[1]);
-  addAll(text, ENV_SCOPED_RE, tokens, (match) => match[1] || match[2]);
-  addAll(text, ENV_ASSIGN_RE, tokens, (match) => match[1]);
-  addAll(text, ENV_NAME_RE, tokens);
-  addAll(text, CAMEL_IDENT_RE, tokens);
-  addAll(text, SNAKE_IDENT_RE, tokens);
+  const index = { tokens, classes: emptyClasses() };
+  extractRegexClasses(index, text);
   return tokens;
 }
 
-export function extractTokens(text) {
-  const tokens = new Set();
+function extractRegexClasses(index, text) {
+  addAll(index, text, URL_RE, "url");
+  addAll(index, text, VERSION_RE, "semver");
+  addAll(index, text, HEX_RE, "hex");
+  addAll(index, text, BASE58_SIG_RE, "base58");
+  addAll(index, text, BASE58_KEY_RE, "base58");
+  addAll(index, text, ISO_DATE_RE, "isoDate");
+  addAll(index, text, UK_DATE_RE, "numericDate");
+  addAll(index, text, PERCENT_RE, "percent");
+  addAll(index, text, CURRENCY_RE, "currency");
+  addAll(index, text, HOME_OR_REL_PATH_RE, "path");
+  addAll(index, text, ABS_PATH_RE, "path", (match) => match[1]);
+  addAll(index, text, WIN_ABS_PATH_RE, "path", (match) => match[1]);
+  addAll(index, text, WIN_FWD_PATH_RE, "path", (match) => match[1]);
+  addAll(index, text, ENV_SCOPED_RE, "env", (match) => match[1] || match[2]);
+  addAll(index, text, ENV_ASSIGN_RE, "env", (match) => match[1]);
+  addAll(index, text, ENV_NAME_RE, "env");
+  addAll(index, text, CAMEL_IDENT_RE, "camelCase");
+  addAll(index, text, SNAKE_IDENT_RE, "snakeCase");
+}
+
+export function extractTokenIndex(text) {
+  const index = { tokens: new Set(), classes: emptyClasses() };
   const { tree } = parseMarkdown(text);
   visit(tree, (node) => {
     if (node.type === "inlineCode" && node.value) {
-      tokens.add(node.value);
-      extractFromText(node.value, tokens);
+      addExact(index, "inlineCode", node.value);
+      extractRegexClasses(index, node.value);
     } else if (node.type === "code" && node.value) {
-      tokens.add(node.value.replace(/\n$/u, ""));
-      extractFromText(node.value, tokens);
+      addExact(index, "fencedCode", node.value.replace(/\n$/u, ""));
+      extractRegexClasses(index, node.value);
     } else if (node.type === "link" && node.url) {
-      tokens.add(node.url);
+      addExact(index, "url", node.url);
     } else if (node.type === "text" && node.value) {
-      extractFromText(node.value, tokens);
+      extractRegexClasses(index, node.value);
     }
   });
-  extractFromText(text, tokens);
-  return tokens;
+  extractRegexClasses(index, text);
+  return index;
+}
+
+export function extractTokens(text) {
+  return extractTokenIndex(text).tokens;
 }
 
 export function compareTokens(before, after) {
@@ -76,4 +123,42 @@ export function compareTokens(before, after) {
     if (!afterSet.has(token)) missing.push(token);
   }
   return { missing, ok: missing.length === 0 };
+}
+
+function uniqueMatches(text, pattern) {
+  return [...new Set([...text.matchAll(pattern)].map((match) => match[0]))];
+}
+
+export function integrityCoverage(text, { checked = false } = {}) {
+  const index = extractTokenIndex(text);
+  const classes = Object.fromEntries(
+    TOKEN_CLASS_NAMES.map((name) => {
+      const values = [...index.classes[name]];
+      return [name, { count: values.length, examples: values.slice(0, 3) }];
+    }),
+  );
+  const twoPart = uniqueMatches(text, TWO_PART_VERSION_RE);
+  const monthDates = uniqueMatches(text, MONTH_NAME_DATE_RE);
+  const warnings = [
+    {
+      code: "unprotected-isolated-integer",
+      message: "Isolated integers are not a protected-token class and can change without failing integrity.",
+      examples: [],
+    },
+  ];
+  if (twoPart.length > 0) {
+    warnings.push({
+      code: "unprotected-two-part-version",
+      message: "Two-part versions such as 18.17 are outside the current extractor.",
+      examples: twoPart.slice(0, 3),
+    });
+  }
+  if (monthDates.length > 0) {
+    warnings.push({
+      code: "unprotected-month-name-date",
+      message: "Month-name dates such as May 2027 are outside the current extractor.",
+      examples: monthDates.slice(0, 3),
+    });
+  }
+  return { checked, classes, warnings };
 }

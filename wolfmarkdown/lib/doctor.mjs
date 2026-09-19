@@ -1,7 +1,8 @@
 import { accessSync } from "node:fs";
-import { access, readFile, realpath, stat } from "node:fs/promises";
+import { access, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { delimiter, join } from "node:path";
+import { inspectDependencies } from "./dependencies.mjs";
 import { claudeDestination, defaultDestination, pathsPointAtSameDir } from "./install-targets.mjs";
 
 const REQUIRED_SCRIPTS = ["format-markdown.mjs", "verify-markdown.mjs", "install.mjs", "doctor.mjs"];
@@ -29,27 +30,9 @@ async function discoveryPointsAt(destination, canonicalDir, errors, label) {
 }
 
 async function dependenciesHealthy(canonicalDir, errors) {
-  let manifest;
-  try {
-    manifest = JSON.parse(await readFile(join(canonicalDir, "package.json"), "utf8"));
-  } catch {
-    errors.push("package.json is missing.");
-    return false;
-  }
-  let ok = true;
-  for (const [name, expected] of Object.entries(manifest.dependencies ?? {})) {
-    try {
-      const installed = JSON.parse(await readFile(join(canonicalDir, "node_modules", name, "package.json"), "utf8"));
-      if (installed.version !== expected) {
-        ok = false;
-        errors.push(`${name} ${installed.version} does not match required ${expected}.`);
-      }
-    } catch {
-      ok = false;
-      errors.push(`Dependency not installed: ${name}@${expected}`);
-    }
-  }
-  return ok;
+  const result = await inspectDependencies(canonicalDir);
+  errors.push(...result.errors);
+  return result.ok;
 }
 
 export async function inspectHealth({

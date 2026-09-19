@@ -1,22 +1,16 @@
 ---
 name: wolfmarkdown
 description: >
-  Use when the user asks for WolfMarkDown, /wolfmarkdown, /wolfmarkdown setup,
-  /wolfmarkdown doctor, Markdown cleanup, Markdown formatting, Markdown repair,
-  format this Markdown, clean this Markdown, repair this Markdown,
-  validate this Markdown, check this Markdown, malformed Markdown,
-  badly formatted research, AI-generated research cleanup,
-  copied agent conversation cleanup, documentation formatting, malformed tables,
-  .md cleanup, Markdown lint failures, export as Markdown,
-  export as a Markdown file, present as Markdown, write as Markdown,
-  write a Markdown file, create a Markdown file, create a .md,
-  save this as Markdown, save this as .md, install WolfMarkDown,
-  set up WolfMarkDown, or WolfMarkDown doctor.
+  WolfMarkDown turns messy agent output into standalone Markdown you can keep.
+  It composes, cleans, and verifies .md files: the agent decides structure;
+  deterministic tooling proves formatting, parsing, integrity, and publication
+  safety. A PASS is Markdown-quality evidence, not factual correctness or
+  approval to publish.
 license: MIT
 compatibility: Requires Node.js 20+
 metadata:
   author: WolfMark
-  version: "0.2.2"
+  version: "1.0.0"
   display-name: WolfMarkDown
 ---
 
@@ -40,6 +34,7 @@ Resolve every script path from this `SKILL.md` directory.
 - `scripts/install.mjs`
 - `scripts/format-markdown.mjs`
 - `scripts/verify-markdown.mjs`
+- `scripts/scaffold-markdown.mjs`
 
 Requires Node.js 20 or newer.
 
@@ -56,6 +51,8 @@ Where the harness exposes Agent Skills as slash commands (Grok does), this skill
 | `/wolfmarkdown verify <file.md>`                 | Verify  |
 | `/wolfmarkdown <file.md>`                        | Clean   |
 | `/wolfmarkdown` plus export or write wording     | Compose |
+
+Natural-language forms include Markdown cleanup, Markdown formatting, Markdown repair, format this Markdown, clean this Markdown, repair this Markdown, validate this Markdown, check this Markdown, malformed Markdown, copied agent conversation cleanup, malformed tables, .md cleanup, Markdown lint failures, export as Markdown, export as a Markdown file, present as Markdown, write as Markdown, write a Markdown file, create a Markdown file, create a .md, save this as Markdown, save this as .md, install WolfMarkDown, set up WolfMarkDown, and WolfMarkDown doctor.
 
 ## Intent
 
@@ -100,9 +97,9 @@ Distinguish **runtime health** from **discovery health**. Report Runtime, Discov
 
 Do not sanitise, compose, or rewrite. Run:
 
-`node scripts/verify-markdown.mjs <file> [--json]`
+`node scripts/verify-markdown.mjs <file.md|dir|-> [...] [--integrity-from <original.md>] [--preview] [--receipt <out.json>] [--json]`
 
-Report PASS or FAIL with the verifier errors.
+Use `-` to read standard input. Directories are scanned recursively for `.md` files. `--integrity-from` is only valid with exactly one file and cannot be standard input. `--receipt` must be a distinct file; it cannot be the candidate, the integrity source, or standard input. Report PASS or FAIL with the verifier issues. `--json` and `--receipt` write a verification receipt: hashes, versions, checks, integrity coverage, issues with remediations, and the quality boundary. `--preview` adds a deterministic source-to-candidate inventory. Preview does not judge semantic decisions.
 
 ## Clean
 
@@ -111,8 +108,8 @@ Before formatting, inspect whether the source contains flattened semantic struct
 1. Read the complete existing file.
 2. Snapshot the original bytes to a unique OS temp file. Do not commit it. Do not overwrite it later.
 3. Classify. Sanitise conversation scaffolding only when appropriate. See [conversation-sanitisation.md](references/conversation-sanitisation.md).
-4. Build a source map, use the long-document semantic handoff when needed, repair the candidate, and reconcile every clear signal by following [semantic-repair.md](references/semantic-repair.md). Apply [wolfmark-markdown-style.md](references/wolfmark-markdown-style.md) for Markdown conventions. Do not let a syntactically valid, Prettier-stable document substitute for recovered structure. Make the smallest semantic changes needed and do not rewrite already-good prose.
-5. Write a candidate, format with `format-markdown.mjs`, verify with `--integrity-from` the snapshot.
+4. Run `node scripts/scaffold-markdown.mjs <snapshot> --json` on the snapshot. Build a source map from that inventory and use the long-document semantic handoff when needed. Classify Preserve, Restructure, Sanitise, Compose, and Unresolved yourself. The scaffold does not rewrite and is not semantic proof. Then repair the candidate and reconcile every clear signal by following [semantic-repair.md](references/semantic-repair.md). Apply [wolfmark-markdown-style.md](references/wolfmark-markdown-style.md) for Markdown conventions. Do not let a syntactically valid, Prettier-stable document substitute for recovered structure. Make the smallest semantic changes needed and do not rewrite already-good prose.
+5. Write a candidate, format with `format-markdown.mjs`, then verify with `--integrity-from` the snapshot, `--preview`, `--receipt` to a temp JSON file, and `--json`. Do not keep or report PASS without that preview and receipt. Preview does not judge whether a semantic decision was correct.
 6. If verification cannot pass, restore the original file from the snapshot before reporting FAIL. See [compose.md](references/compose.md) for publish/restore rules.
 7. Confirm format `--check`. Report. Delete the temporary snapshot after the report, on both PASS and FAIL. Do not refresh the snapshot from the edited file.
 
@@ -125,8 +122,8 @@ See [compose.md](references/compose.md) and [preservation.md](references/preserv
 3. If the target already exists and the user did not clearly authorise replace/update, do not overwrite it.
 4. Compose a standalone document. Derive a concise H1 from the source unless the user asked for a fragment, README section, or insert. Do not add YAML frontmatter unless requested, already present, or required by an obvious repo convention.
 5. Remove chat-only scaffolding and convert conversation-dependent language into document language. Do not fabricate missing context or citation URLs.
-6. Build a source map, use the long-document semantic handoff when needed, repair the candidate, and reconcile every clear signal by following [semantic-repair.md](references/semantic-repair.md). Apply [wolfmark-markdown-style.md](references/wolfmark-markdown-style.md) for Markdown conventions. Semantic judgement remains agent-owned and deterministic scripts remain proof only.
-7. Write a temporary candidate, format it, and verify it against the source snapshot.
+6. Run `node scripts/scaffold-markdown.mjs <snapshot> --json` on the snapshot. Use that inventory as the source map and the long-document semantic handoff when needed. Classify Preserve, Restructure, Sanitise, Compose, and Unresolved yourself. Then repair the candidate and reconcile every clear signal by following [semantic-repair.md](references/semantic-repair.md). Apply [wolfmark-markdown-style.md](references/wolfmark-markdown-style.md) for Markdown conventions. Semantic judgement remains agent-owned and deterministic scripts remain proof only.
+7. Write a temporary candidate, format it, and verify it against the source snapshot with `--integrity-from`, `--preview`, `--receipt` to a temp JSON file, and `--json`. Do not publish or report PASS without that preview and receipt. Preview does not decide whether a semantic repair was correct.
 8. Publish to the destination only after PASS. Do not leave an unverified file at the destination. Clean up temporary files.
 
 ## Report
@@ -205,4 +202,4 @@ Do not report invented metrics. No decorative status symbols.
 
 ## Red flags
 
-Do not report PASS if verify was skipped, verify exited non-zero, the target was edited before the snapshot, the edited file was used as `--integrity-from`, a failed Clean left a changed file, a failed Compose published the destination, a code block was sanitised, a protected token was dropped, a legitimate transcript was removed, code was rewritten, a citation URL was invented, the report introduced decorative emoji, the source scope was incomplete without disclosure, or the user was asked to run install or npm commands themselves. Do not claim that PASS validates the source's factual correctness or publication readiness.
+Do not report PASS if verify was skipped, verify exited non-zero, Clean or Compose skipped `--preview` or `--receipt`, the target was edited before the snapshot, the edited file was used as `--integrity-from`, a failed Clean left a changed file, a failed Compose published the destination, a code block was sanitised, a protected token was dropped, a legitimate transcript was removed, code was rewritten, a citation URL was invented, the report introduced decorative emoji, the source scope was incomplete without disclosure, or the user was asked to run install or npm commands themselves. Do not claim that PASS validates the source's factual correctness or publication readiness.

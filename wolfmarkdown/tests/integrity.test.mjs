@@ -59,6 +59,15 @@ test("wrapping the same address in backticks still preserves the token", () => {
   assert.equal(compareTokens(before, after).ok, true);
 });
 
+test("mutating trailing punctuation in protected code fails comparison", () => {
+  const before = extractTokens("Use `let x = 1.` in the snippet.\n\n```js\nconst y = 2.\n```\n");
+  const after = extractTokens("Use `let x = 1` in the snippet.\n\n```js\nconst y = 2\n```\n");
+  const result = compareTokens(before, after);
+  assert.equal(result.ok, false);
+  assert.ok(result.missing.includes("let x = 1."));
+  assert.ok(result.missing.includes("const y = 2."));
+});
+
 test("deleting a URL fails comparison", () => {
   const before = extractTokens("See https://example.com/a");
   const after = extractTokens("See the docs.");

@@ -12,10 +12,7 @@ const triggers = [
   "Markdown formatting",
   "Markdown repair",
   "malformed Markdown",
-  "badly formatted research",
-  "AI-generated research cleanup",
   "copied agent conversation cleanup",
-  "documentation formatting",
   "malformed tables",
   ".md cleanup",
   "Markdown lint failures",
@@ -42,6 +39,9 @@ test("SKILL.md satisfies the WolfMarkDown contract", async () => {
   const text = await readFile(join(skillRoot, "SKILL.md"), "utf8");
   assert.match(text, /^---\nname: wolfmarkdown\n/u);
   assert.match(text, /description:/);
+  const frontmatter = text.match(/^---\n([\s\S]*?)\n---\n/u)?.[1] ?? "";
+  assert.match(frontmatter, /description:\s*>\n\s*WolfMarkDown turns messy agent output/u);
+  assert.doesNotMatch(frontmatter, /Use when the user asks/u);
   assert.match(text, /license: MIT/);
   assert.match(text, /compatibility: Requires Node\.js 20\+/);
   assert.match(text, /metadata:/);
@@ -52,6 +52,9 @@ test("SKILL.md satisfies the WolfMarkDown contract", async () => {
     }
     assert.ok(text.includes(trigger), `missing trigger ${trigger}`);
   }
+  assert.doesNotMatch(text, /badly formatted research/);
+  assert.doesNotMatch(text, /AI-generated research cleanup/);
+  assert.doesNotMatch(text, /documentation formatting/);
   assert.match(text, /snapshot/i);
   assert.match(text, /--integrity-from/);
   assert.match(text, /Do not refresh the snapshot from the edited file/);
@@ -59,6 +62,10 @@ test("SKILL.md satisfies the WolfMarkDown contract", async () => {
   assert.match(text, /install\.mjs/);
   assert.match(text, /format-markdown\.mjs/);
   assert.match(text, /verify-markdown\.mjs/);
+  assert.match(text, /scaffold-markdown\.mjs/);
+  assert.match(text, /Do not keep or report PASS without that preview and receipt/);
+  assert.match(text, /Do not publish or report PASS without that preview and receipt/);
+  assert.match(text, /Clean or Compose skipped `--preview` or `--receipt`/);
   assert.match(text, /Slash command/);
   assert.match(text, /\/wolfmarkdown setup/);
   assert.match(text, /\/wolfmarkdown doctor/);
@@ -98,4 +105,13 @@ test("SKILL.md satisfies the WolfMarkDown contract", async () => {
   assert.doesNotMatch(text, /remark-stringify/);
   assert.doesNotMatch(text, /markdown-polisher/);
   assert.doesNotMatch(text, /[\u2705\u274C\u26A0\uD83D\uDE80]/u);
+});
+
+test("plugin, package, and skill versions match", async () => {
+  const pkg = JSON.parse(await readFile(join(skillRoot, "package.json"), "utf8"));
+  const plugin = JSON.parse(await readFile(join(skillRoot, "..", "plugin.json"), "utf8"));
+  const skill = await readFile(join(skillRoot, "SKILL.md"), "utf8");
+  const skillVersion = skill.match(/^---\n[\s\S]*?^ {2}version:\s*"([^"]+)"/mu)?.[1];
+  assert.equal(plugin.version, pkg.version);
+  assert.equal(skillVersion, pkg.version);
 });

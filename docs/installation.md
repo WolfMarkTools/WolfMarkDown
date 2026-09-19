@@ -81,12 +81,14 @@ node wolfmarkdown/scripts/install.mjs
 
 ## Compatibility
 
-WolfMarkDown uses the Agent Skills directory convention. The following reflects the repository's current v1.0.0 acceptance metadata:
+WolfMarkDown uses the Agent Skills directory convention. The current compatibility status is:
 
-| Host | Discovery path | Repository status |
+| Host | Discovery path | Status |
 | --- | --- | --- |
 | Codex, Cursor, Grok Build | Shared `.agents/skills` | Tested |
 | Claude Code | Optional `.claude/skills` compatibility link | Tested |
-| OpenCode, Gemini CLI, Antigravity, GitHub Copilot | Host-specific Agent Skills support | Pending |
+| OpenCode | Shared `.agents/skills` | Tested |
+| Antigravity | Project/local Agent Skills support | Tested |
+| GitHub Copilot | Host-specific Agent Skills support | Host validation pending |
 
 This is a discovery and host-acceptance summary, not a promise that every host or model produces identical semantic decisions.

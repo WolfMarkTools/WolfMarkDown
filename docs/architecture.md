@@ -4,14 +4,14 @@ WolfMarkDown separates semantic judgement from deterministic proof:
 
 > **Agent judgement for structure. Deterministic tooling for proof.**
 
-The agent decides what the source means. WolfMarkDown's scripts check whether the resulting Markdown artifact is structurally and operationally safe to keep or publish.
+The agent decides what the source means. WolfMarkDown's scripts check the resulting Markdown artifact's verified structural and operational properties for the requested operation. Operational publication safety means protecting destinations, writing atomically, rolling back failed Clean operations, and refusing to publish failed Compose output; it does not approve content.
 
 ## Workflow
 
 1. **Inspect the source.** The agent reads the complete source or records the reviewed scope for a bounded pass.
 2. **Build a source map.** It records document intent, heading relationships, candidate tables, repeated groups, protected regions, and unresolved ambiguities.
 3. **Repair conservatively.** Clear structure may be recovered; probable structure gets the smallest wording-preserving change; ambiguous structure remains ambiguous and is reported.
-4. **Format and verify.** Prettier is the sole final Markdown printer. Deterministic checks cover parsing, fences, lint, idempotence, publication safety, and optional integrity against the source snapshot.
+4. **Format and verify.** Prettier is the sole final Markdown printer. Deterministic checks cover parsing, fences, lint, idempotence, destination protection, rollback and refusal to publish failed output, and optional integrity against the source snapshot.
 5. **Reconcile before publishing.** Long or chunked work is checked against the full-document outline, sibling sections, table boundaries, protected values, and unresolved regions.
 
 ## Semantic repair boundary
@@ -39,8 +39,8 @@ The full source-map and confidence workflow is documented in [semantic-repair.md
 
 Scripts do not become a second semantic editor. In particular, they do not infer tables or headings from visual alignment alone.
 
-## Publication safety
+## Operational publication safety
 
-Clean and Compose work through a candidate and verification evidence before changing the destination. The original source is snapshotted before editing. If Clean verification fails, the original is restored. If Compose verification fails, the requested destination is not published.
+Clean and Compose work through a candidate and verification evidence before changing a destination. The original source is snapshotted before editing, writes protect regular-file and symlink boundaries, and publication is atomic where the operation requires it. If Clean verification fails, the original is restored. If Compose verification fails, the requested destination is not published. These are write and failure-handling guarantees, not content approval.
 
 See [Verification, integrity, and PASS](./verification.md) for receipt, preview, and token-preservation details.

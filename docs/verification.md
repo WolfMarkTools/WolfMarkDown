@@ -6,7 +6,7 @@ WolfMarkDown uses deterministic tooling to prove properties of a Markdown artifa
 
 > **A WolfMarkDown PASS is Markdown-quality evidence, not content approval.**
 
-A PASS can provide evidence about the checks applicable to the operation, such as Markdown parsing, fence balance, lint, formatting, idempotence, publication safety, and protected-token integrity when an untouched source snapshot is available.
+A PASS can provide evidence about the checks applicable to the operation, such as Markdown parsing, fence balance, lint, formatting, idempotence, destination protection, failed-output handling, and protected-token integrity when an untouched source snapshot is available.
 
 A PASS does not establish:
 

@@ -14,7 +14,7 @@ Keep the Markdown your agent produces. WolfMarkDown is an agent publishing workf
 
 Agents produce useful research, plans, and documentation — but they can also flatten tables, skip headings, copy chat scaffolding, break fences, or quietly change technical identifiers. WolfMarkDown is the publishing layer for turning that output into a standalone `.md` file that can be reviewed and kept.
 
-It keeps semantic decisions with the agent and uses deterministic tooling to prove the resulting artifact is well-formed and safe to publish. It is not a generic AI Markdown formatter or a factuality checker: WolfMarkDown does not fact-check claims.
+It keeps semantic decisions with the agent and uses deterministic tooling to prove properties of the resulting Markdown artifact before it is kept or published. It is not a generic AI Markdown formatter or a factuality checker: WolfMarkDown does not fact-check claims.
 
 ## Install
 
@@ -110,7 +110,7 @@ Failed Clean restores the original file. Failed Compose does not publish an unve
 
 1. The agent reads the source, identifies clear headings, lists, tables, paragraphs, and document boundaries, and preserves genuinely ambiguous regions.
 2. A source map keeps semantic decisions, protected regions, and unresolved ambiguities visible across the document.
-3. Prettier provides the final Markdown print; deterministic checks cover parsing, fences, lint, idempotence, publication safety, and — when requested — integrity against the source snapshot.
+3. Prettier provides the final Markdown print; deterministic checks cover parsing, fences, lint, idempotence, destination protection, failed-output refusal, and — when requested — integrity against the source snapshot.
 4. A verification receipt and preview can record hashes, versions, checks, integrity coverage, issues, and the quality boundary.
 
 See [Architecture and semantic repair](./docs/architecture.md) for the full workflow.
@@ -133,7 +133,17 @@ Integrity is strongest when Clean or Compose compares the candidate with an unto
 
 WolfMarkDown is one canonical Agent Skill. Its primary discovery convention is the shared `.agents/skills/wolfmarkdown` directory; Claude Code also has an optional `.claude/skills/wolfmarkdown` compatibility path, and a repository checkout can expose a project-local skill.
 
-The current repository acceptance metadata marks Codex, Cursor, Grok Build, and Claude Code as tested. OpenCode, Gemini CLI, Antigravity, and GitHub Copilot remain host-dependent and are marked pending. Host acceptance and model output quality are separate questions; WolfMarkDown does not promise identical semantic results from every host.
+| Host           | Status                      |
+| -------------- | --------------------------- |
+| Codex          | **Tested**                  |
+| Cursor         | **Tested**                  |
+| Grok Build     | **Tested**                  |
+| Claude Code    | **Tested**                  |
+| OpenCode       | **Tested**                  |
+| Antigravity    | **Tested**                  |
+| GitHub Copilot | **Host validation pending** |
+
+See [detailed compatibility information](./docs/installation.md#compatibility). Host acceptance and model semantic quality are separate concerns; WolfMarkDown does not promise identical results from every host or model.
 
 ## Examples
 
@@ -154,7 +164,8 @@ The current repository acceptance metadata marks Codex, Cursor, Grok Build, and 
 - [Installation and updates](./docs/installation.md)
 - [Verification, integrity, and PASS](./docs/verification.md)
 - [Architecture and semantic repair](./docs/architecture.md)
-- [v1.0.0 release notes](./docs/release-notes.md)
+- [Validation and evidence](./docs/validation.md)
+- [v1.0.0 GitHub Release](https://github.com/WolfMarkTools/WolfMarkDown/releases/tag/v1.0.0)
 - [Canonical Agent Skill](./wolfmarkdown/SKILL.md)
 - [Contributing](./CONTRIBUTING.md)
 

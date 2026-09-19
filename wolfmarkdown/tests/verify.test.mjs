@@ -147,3 +147,15 @@ test("fences indented more than three spaces past list content are not fences", 
   const result = assertFencesBalanced(markdown);
   assert.equal(result.ok, true, result.errors.join("\n"));
 });
+
+test("hyphenated paragraph text is not a list for nested fence detection", () => {
+  const markdown = ["# Title", "", "-word", "    ```js", "    const x = 1;", ""].join("\n");
+  const result = assertFencesBalanced(markdown);
+  assert.equal(result.ok, true, result.errors.join("\n"));
+});
+
+test("ordered markers without a following space are not lists for nested fence detection", () => {
+  const markdown = ["# Title", "", "1.word", "    ```js", "    const x = 1;", ""].join("\n");
+  const result = assertFencesBalanced(markdown);
+  assert.equal(result.ok, true, result.errors.join("\n"));
+});

@@ -30,8 +30,9 @@ function columnWidth(text, start = 0) {
 }
 
 function listContentIndent(line) {
-  const match = line.match(/^(\s*)([-*+]|\d{1,9}[.)])([ \t]*)/);
+  const match = line.match(/^(\s*)([-*+]|\d{1,9}[.)])([ \t]*)(.*)$/);
   if (!match) return null;
+  if (match[3].length === 0 && match[4].length > 0) return null;
   const markerStart = columnWidth(match[1]);
   const afterMarker = markerStart + match[2].length;
   const padding = match[3].length === 0 ? 1 : columnWidth(match[3], afterMarker) - afterMarker;

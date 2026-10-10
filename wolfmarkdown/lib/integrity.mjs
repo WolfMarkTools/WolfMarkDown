@@ -148,11 +148,20 @@ export function extractTokenIndex(text) {
       return;
     }
     if (
-      (node.type === "link" || node.type === "definition" || node.type === "image") &&
-      typeof node.url === "string"
+      (node.type === "link" || node.type === "definition" || node.type === "image" || node.type === "imageReference") &&
+      (typeof node.url === "string" || typeof node.alt === "string")
     ) {
-      addExact(index, "url", node.url);
+      if (typeof node.url === "string") addExact(index, "url", node.url);
       if (typeof node.title === "string" && node.title) extractRegexClasses(index, node.title, false);
+      // Image descriptions live only in the alt property (no child nodes),
+      // so they are scanned here, exactly once, as ordinary prose.
+      if (
+        (node.type === "image" || node.type === "imageReference") &&
+        typeof node.alt === "string" &&
+        node.alt
+      ) {
+        extractRegexClasses(index, node.alt, false);
+      }
       return;
     }
     if ((node.type === "text" || node.type === "html") && typeof node.value === "string") {

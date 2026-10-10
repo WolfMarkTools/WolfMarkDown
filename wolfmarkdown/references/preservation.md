@@ -23,6 +23,7 @@ The extractor matches these classes only:
 - Percentages such as `12%` and `12 %`
 - Currency amounts such as `$4.00`, `$1,000`, `£4.00`, and `€4.00`
 - camelCase and snake_case identifiers backed by code spans, such as `` `getTransaction` ``
+- Image descriptions, scanned once as ordinary prose
 
 Identifiers that match camelCase, snake_case, or bare environment-name shapes but appear only in ordinary prose are not failures when changed; they are reported as `possibly-changed-prose-token` warnings for the agent to review. A protected token that still appears but fewer times than in the snapshot is reported as a `decreased-protected-token-count` warning. When a decreased token appears alongside a newly introduced token of the same class, the pair is treated as an unauthorised change and fails verification, since an entire occurrence disappearing is only ever a warning while a same-class replacement reads as a mutation. There is no removal-permit mechanism: an explicitly intended change to a strongly protected value still fails so the agent reconciles it deliberately.
 

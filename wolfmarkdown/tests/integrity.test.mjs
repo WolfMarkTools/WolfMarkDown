@@ -223,6 +223,33 @@ test("moving a literal out of code fails on structure, not on value mutation", a
   assert.ok(!demoted.errors.some((error) => /changed:/.test(error)), demoted.errors.join("\n"));
 });
 
+test("changing an image description amount fails verification", async () => {
+  const changed = await verifyMarkdown("![Payment £50](chart.png)\n", {
+    integrityFromText: "![Payment £500](chart.png)\n",
+  });
+  assert.equal(changed.ok, false);
+  assert.ok(changed.errors.some((error) => /missing: £500/.test(error)), changed.errors.join("\n"));
+  const unchanged = await verifyMarkdown("![Payment £500](chart.png)\n", {
+    integrityFromText: "![Payment £500](chart.png)\n",
+  });
+  assert.equal(unchanged.ok, true, unchanged.errors.join("\n"));
+});
+
+test("changing a reference-image description amount fails verification", () => {
+  const result = compareTokenIndexes(
+    extractTokenIndex("![Fee £500][c]\n\n[c]: chart.png\n"),
+    extractTokenIndex("![Fee £50][c]\n\n[c]: chart.png\n"),
+  );
+  assert.equal(result.ok, false);
+  assert.ok(result.missing.includes("£500"));
+});
+
+test("image descriptions count each occurrence once", () => {
+  const index = extractTokenIndex("![Payment £500](chart.png)\n");
+  assert.equal(index.classes.currency.get("£500"), 1);
+  assert.equal(index.classes.url.get("chart.png"), 1);
+});
+
 test("identical values across prose and link nodes count actual occurrences", async () => {
   const before = extractTokenIndex("See https://example.com/a and [the docs](https://example.com/a).\n");
   assert.equal(before.classes.url.get("https://example.com/a"), 2);

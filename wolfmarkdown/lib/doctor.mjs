@@ -126,9 +126,10 @@ const AGENT_CATALOGUE = [
   { id: "cursor", name: "Cursor", tier: 1, discovery: "shared", acceptance: "tested" },
   { id: "grok", name: "Grok Build", tier: 1, discovery: "shared", acceptance: "tested" },
   { id: "claude", name: "Claude Code", tier: 1, discovery: "claude", acceptance: "tested" },
-  { id: "opencode", name: "OpenCode", tier: 1, discovery: "shared", acceptance: "pending" },
-  { id: "gemini", name: "Gemini CLI", tier: 1, discovery: "shared", acceptance: "pending" },
-  { id: "antigravity", name: "Antigravity", tier: 1, discovery: "project-shared", acceptance: "pending" },
+  { id: "opencode", name: "OpenCode", tier: 1, discovery: "shared", acceptance: "tested" },
+  { id: "antigravity", name: "Antigravity", tier: 1, discovery: "project-shared", acceptance: "tested" },
+  { id: "commandcode", name: "Command Code", tier: 1, discovery: "project-shared", acceptance: "tested" },
+  { id: "muse", name: "Muse Code", tier: 1, discovery: "project-shared", acceptance: "tested" },
   { id: "copilot", name: "GitHub Copilot", tier: 2, discovery: "shared", acceptance: "pending" },
 ];
 
@@ -148,8 +149,8 @@ function defaultLookFor(home) {
     cursor: existsSyncSafe(join(home, ".cursor")),
     grok: existsSyncSafe(join(home, ".grok")),
     opencode: existsSyncSafe(join(home, ".opencode")) || existsSyncSafe(join(home, ".config", "opencode")),
-    gemini: existsSyncSafe(join(home, ".gemini")) || existsSyncSafe(join(home, ".config", "gemini")),
     antigravity: existsSyncSafe(join(home, ".antigravity")) || existsSyncSafe(macAntigravity),
+    commandcode: existsSyncSafe(join(home, ".commandcode")) || commandOnPath(),
     copilot: false,
   };
 }
@@ -169,11 +170,21 @@ export function candidateBinaries(name, platform = process.platform) {
   return names;
 }
 
+function binaryOnPath(name) {
+  const parts = (process.env.PATH || "").split(delimiter);
+  return parts.some((dir) => candidateBinaries(name).some((bin) => existsSyncSafe(join(dir, bin))));
+}
+
+// The `cmd` binary collides with the Windows system shell, so it only counts
+// as Command Code detection outside win32; ~/.commandcode works everywhere.
+function commandOnPath() {
+  return process.platform !== "win32" && binaryOnPath("cmd");
+}
+
 function binsOnPath() {
   const found = {};
-  const parts = (process.env.PATH || "").split(delimiter);
-  for (const name of ["claude", "codex", "cursor", "grok", "opencode", "gemini", "copilot"]) {
-    found[name] = parts.some((dir) => candidateBinaries(name).some((bin) => existsSyncSafe(join(dir, bin))));
+  for (const name of ["claude", "codex", "cursor", "grok", "opencode", "muse", "copilot"]) {
+    found[name] = binaryOnPath(name);
   }
   return found;
 }

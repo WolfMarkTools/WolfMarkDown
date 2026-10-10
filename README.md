@@ -104,7 +104,7 @@ Prettier is an excellent deterministic Markdown printer. WolfMarkDown works at a
 | **Doctor** | Inspect runtime dependencies and skill discovery without modifying Markdown. |
 | **Setup** | Install or repair only what is needed for the runtime and configure skill discovery. |
 
-Failed Clean restores the original file. Failed Compose does not publish an unverified destination.
+Failed Clean restores the original file. Failed Compose does not publish an unverified destination. Concurrent publishes to the same destination are serialised; a changed destination fails with a conflict instead of being overwritten.
 
 ## How it works
 
@@ -141,6 +141,8 @@ WolfMarkDown is one canonical Agent Skill. Its primary discovery convention is t
 | Claude Code    | **Tested**                  |
 | OpenCode       | **Tested**                  |
 | Antigravity    | **Tested**                  |
+| Command Code   | **Tested**                  |
+| Muse Code      | **Tested**                  |
 | GitHub Copilot | **Host validation pending** |
 
 See [detailed compatibility information](./docs/installation.md#compatibility). Host acceptance and model semantic quality are separate concerns; WolfMarkDown does not promise identical results from every host or model.
@@ -155,7 +157,7 @@ See [detailed compatibility information](./docs/installation.md#compatibility). 
 
 - Semantic structure remains an agent decision. WolfMarkDown does not use deterministic table or heading heuristics to manufacture meaning.
 - Ambiguous row runs, headings, or labels remain conservative and are reported rather than silently promoted into structure.
-- Integrity covers recognised token classes only; it is not a guarantee that every number, date, identifier, or technical value was unchanged.
+- Integrity covers recognised token classes only; it is not a guarantee that every number, date, identifier, or technical value was unchanged. Uncertain cases such as prose-identifier edits or reduced repetitions are reported as warnings for agent review rather than failures.
 - PASS is not a fact-check, completeness review, policy decision, or publication authorisation.
 - Host discovery and semantic quality still depend on the agent host and model.
 

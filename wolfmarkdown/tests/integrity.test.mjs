@@ -250,6 +250,29 @@ test("image descriptions count each occurrence once", () => {
   assert.equal(index.classes.url.get("chart.png"), 1);
 });
 
+test("overlapping path patterns count one appearance once", () => {
+  const single = extractTokenIndex("See docs/api/config.md.\n");
+  assert.equal(single.classes.path.get("docs/api/config.md"), 1);
+  const twice = extractTokenIndex("See docs/api/config.md and docs/api/config.md.\n");
+  assert.equal(twice.classes.path.get("docs/api/config.md"), 2);
+});
+
+test("explicit link text and target count as two appearances", () => {
+  const explicit = extractTokenIndex("[https://example.com](https://example.com)\n");
+  assert.equal(explicit.classes.url.get("https://example.com"), 2);
+  const changed = compareTokenIndexes(
+    extractTokenIndex("[https://example.com](https://example.com)\n"),
+    extractTokenIndex("[https://other.example](https://other.example)\n"),
+  );
+  assert.equal(changed.ok, false);
+  assert.ok(changed.missing.includes("https://example.com"));
+});
+
+test("bare autolinks still count a single appearance", () => {
+  const index = extractTokenIndex("See https://example.com/a.\n");
+  assert.equal(index.classes.url.get("https://example.com/a"), 1);
+});
+
 test("identical values across prose and link nodes count actual occurrences", async () => {
   const before = extractTokenIndex("See https://example.com/a and [the docs](https://example.com/a).\n");
   assert.equal(before.classes.url.get("https://example.com/a"), 2);

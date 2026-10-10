@@ -77,6 +77,37 @@ export function extractFromText(text, tokens = new Set()) {
   return tokens;
 }
 
+function addPaths(index, text, inCode = false) {
+  const patterns = [
+    { pattern: HOME_OR_REL_PATH_RE, pick: (match) => match[0] },
+    { pattern: REL_FILE_PATH_RE, pick: (match) => match[0] },
+    { pattern: MULTI_SEGMENT_PATH_RE, pick: (match) => match[0] },
+    { pattern: ABS_PATH_RE, pick: (match) => match[1] },
+    { pattern: WIN_ABS_PATH_RE, pick: (match) => match[1] },
+    { pattern: WIN_FWD_PATH_RE, pick: (match) => match[1] },
+  ];
+  // Several path patterns can match the identical source span (for example a
+  // relative file path that is also multi-segment). Deduplicate by span so one
+  // appearance counts once, while distinct appearances keep separate counts.
+  const seen = new Set();
+  for (const { pattern, pick } of patterns) {
+    for (const match of text.matchAll(pattern)) {
+      const raw = pick(match);
+      const token = cleanToken(raw);
+      if (!token) continue;
+      // Key on the cleaned token's span: patterns may include trailing
+      // punctuation that cleanToken strips, and those must still collide.
+      const start = match.index + match[0].lastIndexOf(raw);
+      const key = `${start}:${start + token.length}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      index.tokens.add(token);
+      countUp(index.classes.path, token);
+      if (inCode) index.codeTokens.add(token);
+    }
+  }
+}
+
 function extractRegexClasses(index, text, inCode = false) {
   addAll(index, text, URL_RE, "url", { code: inCode });
   addAll(index, text, VERSION_RE, "semver", { code: inCode });
@@ -87,12 +118,7 @@ function extractRegexClasses(index, text, inCode = false) {
   addAll(index, text, UK_DATE_RE, "numericDate", { code: inCode });
   addAll(index, text, PERCENT_RE, "percent", { normalize: (token) => token.replace(/\s+/gu, ""), code: inCode });
   addAll(index, text, CURRENCY_RE, "currency", { code: inCode });
-  addAll(index, text, HOME_OR_REL_PATH_RE, "path", { code: inCode });
-  addAll(index, text, REL_FILE_PATH_RE, "path", { code: inCode });
-  addAll(index, text, MULTI_SEGMENT_PATH_RE, "path", { code: inCode });
-  addAll(index, text, ABS_PATH_RE, "path", { pick: (match) => match[1], code: inCode });
-  addAll(index, text, WIN_ABS_PATH_RE, "path", { pick: (match) => match[1], code: inCode });
-  addAll(index, text, WIN_FWD_PATH_RE, "path", { pick: (match) => match[1], code: inCode });
+  addPaths(index, text, inCode);
   addAll(index, text, ENV_SCOPED_RE, "env", { pick: (match) => match[0], code: inCode });
   addAll(index, text, ENV_ASSIGN_RE, "env", { pick: (match) => match[1], code: inCode });
   addAll(index, text, ENV_NAME_RE, "env", { code: inCode });
@@ -167,18 +193,27 @@ export function extractTokenIndex(text) {
     if ((node.type === "text" || node.type === "html") && typeof node.value === "string") {
       // GFM autolinks duplicate the URL into a child text node; the link
       // handler already records the URL exactly, so scanning it again would
-      // count one occurrence twice.
+      // count one occurrence twice. Explicit links (`[text](url)`) keep both
+      // appearances: the raw link source starts with `[`, a bare autolink is
+      // exactly its URL.
       const isAutolinkText =
         node.type === "text" &&
         (parent?.type === "link" || parent?.type === "image") &&
         typeof parent.url === "string" &&
-        node.value === parent.url;
+        node.value === parent.url &&
+        isBareAutolink(text, parent);
       if (!isAutolinkText) extractRegexClasses(index, node.value, false);
     }
   });
   extractFrontmatterTokens(index, text);
   assignStrength(index);
   return index;
+}
+
+function isBareAutolink(source, linkNode) {
+  const { start, end } = linkNode.position ?? {};
+  if (start?.offset == null || end?.offset == null) return true;
+  return source.slice(start.offset, end.offset) === linkNode.url;
 }
 
 function extractFrontmatterTokens(index, text) {

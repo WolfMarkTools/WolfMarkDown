@@ -120,7 +120,7 @@ test("absent optional agents are compatible but not detected", async () => {
     assert.equal(copilot.tier, 2);
     const antigravity = health.agents.find((agent) => agent.id === "antigravity");
     assert.equal(antigravity.compatible, true);
-    assert.equal(antigravity.acceptance, "pending");
+    assert.equal(antigravity.acceptance, "tested");
     assert.equal(antigravity.tier, 1);
     const grok = health.agents.find((agent) => agent.id === "grok");
     assert.equal(grok.acceptance, "tested");
@@ -186,6 +186,84 @@ test("Antigravity is not Ready when project root was not inspected and shared is
     assert.equal(health.runtimeOk, true);
     assert.equal(health.ok, health.overallOk);
     assert.equal(health.ok, false);
+  });
+});
+
+test("command code and muse code are tested tier-1 hosts", async () => {
+  await withHome(async (home) => {
+    const health = await inspectHealth({ home, canonicalDir: skillRoot });
+    for (const id of ["commandcode", "muse"]) {
+      const agent = health.agents.find((entry) => entry.id === id);
+      assert.ok(agent, `missing catalogue entry ${id}`);
+      assert.equal(agent.compatible, true);
+      assert.equal(agent.acceptance, "tested");
+      assert.equal(agent.tier, 1);
+    }
+  });
+});
+
+test("command code is detected from its home directory", async () => {
+  await withHome(async (home) => {
+    await mkdir(join(home, ".commandcode"));
+    const emptyPath = join(home, "empty-path");
+    await mkdir(emptyPath);
+    const previous = process.env.PATH;
+    process.env.PATH = emptyPath;
+    try {
+      const health = await inspectHealth({ home, canonicalDir: skillRoot });
+      const agent = health.agents.find((entry) => entry.id === "commandcode");
+      assert.equal(agent.detected, true);
+    } finally {
+      process.env.PATH = previous;
+    }
+  });
+});
+
+test("muse code is detected from its binary on PATH", async () => {
+  await withHome(async (home) => {
+    const binDir = join(home, "bin");
+    await mkdir(binDir);
+    await writeFile(join(binDir, "muse"), "#!/bin/sh\n");
+    const previous = process.env.PATH;
+    process.env.PATH = binDir;
+    try {
+      const health = await inspectHealth({ home, canonicalDir: skillRoot });
+      const agent = health.agents.find((entry) => entry.id === "muse");
+      assert.equal(agent.detected, true);
+    } finally {
+      process.env.PATH = previous;
+    }
+  });
+});
+
+test("project-shared hosts are Ready from a project link without a shared link", async () => {
+  await withHome(async (home) => {
+    const projectRoot = join(home, "project");
+    const dest = join(projectRoot, ".agents", "skills", "wolfmarkdown");
+    await mkdir(join(projectRoot, ".agents", "skills"), { recursive: true });
+    await symlink(skillRoot, dest);
+    const health = await inspectHealth({
+      home,
+      canonicalDir: skillRoot,
+      projectRoot,
+      lookFor: {
+        claude: false,
+        codex: false,
+        cursor: false,
+        grok: false,
+        opencode: false,
+        antigravity: true,
+        commandcode: true,
+        muse: true,
+        copilot: false,
+      },
+    });
+    assert.equal(health.discovery.checks.project, true);
+    for (const id of ["commandcode", "muse", "antigravity"]) {
+      const agent = health.agents.find((entry) => entry.id === id);
+      assert.equal(agent.discoveryReady, true);
+      assert.equal(agent.status, "Ready");
+    }
   });
 });
 

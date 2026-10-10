@@ -4,7 +4,7 @@ Thank you for helping WolfMarkDown handle real Markdown failures while keeping t
 
 ## Local setup
 
-Requires Node.js 20 or newer. From the repository root:
+Requires Node.js 22 or newer. From the repository root:
 
 ```bash
 npm ci --prefix wolfmarkdown

@@ -1,7 +1,8 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
+import lockfile from "proper-lockfile";
 import { lstat, mkdir, open, readFile, realpath, rename, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, basename, join, resolve } from "node:path";
 
 async function lstatOrNull(path) {
   try {
@@ -103,6 +104,87 @@ function concurrentChange(current, originalText, candidateText) {
   return current != null && current !== originalText && current !== candidateText;
 }
 
+const LOCK_STALE_MS = 10_000;
+
+// Locks coordinate cooperating WolfMarkDown processes running as the same OS
+// user. Each user gets a private lock namespace so one user's directory can
+// never block another user's publishing. Locking is advisory: writers that do
+// not use these helpers are still caught by the concurrent-change check, but
+// their writes are not serialised.
+function lockScopeDir() {
+  const uid = typeof process.getuid === "function" ? process.getuid() : null;
+  return uid == null ? join(tmpdir(), "wolfmarkdown-locks") : join(tmpdir(), `wolfmarkdown-locks-uid${uid}`);
+}
+
+async function canonicalDest(dest) {
+  try {
+    return await realpath(dest);
+  } catch {
+    try {
+      return join(await realpath(dirname(dest)), basename(dest));
+    } catch {
+      return resolve(dest);
+    }
+  }
+}
+
+export async function lockFileFor(dest) {
+  const key = createHash("sha256").update(await canonicalDest(dest)).digest("hex");
+  return join(lockScopeDir(), `${key}.lock`);
+}
+
+function lockConflict(dest) {
+  return new Error(`Destination is locked by another WolfMarkDown operation: ${dest}`);
+}
+
+// Exclusive publishing uses proper-lockfile (atomic directory creation, live
+// mtime refresh while held, stale takeover, compromise detection) over a
+// canonical per-destination key. A live lock is never reclaimed by age: only
+// a lock whose owner is gone, or whose mtime has gone stale, can be taken
+// over. Waiting is bounded by timeoutMs.
+export async function acquireDestinationLock(dest, { timeoutMs = 10_000 } = {}) {
+  const canonical = await canonicalDest(dest);
+  const lockFile = await lockFileFor(dest);
+  await mkdir(dirname(lockFile), { recursive: true });
+  let compromised = null;
+  let release;
+  try {
+    release = await lockfile.lock(canonical, {
+      realpath: false,
+      lockfilePath: lockFile,
+      stale: LOCK_STALE_MS,
+      retries:
+        timeoutMs <= 0
+          ? 0
+          : { retries: Math.max(1, Math.ceil(timeoutMs / 50)), minTimeout: 25, maxTimeout: 50 },
+      onCompromised: (error) => {
+        compromised = error;
+      },
+    });
+  } catch (error) {
+    if (error?.code === "ELOCKED") throw lockConflict(dest);
+    throw error;
+  }
+  return {
+    lockFile,
+    checkOwnership: () => {
+      if (compromised) throw new Error(`Destination lock was compromised for ${dest}; refusing to write.`);
+    },
+    release: async () => {
+      await release().catch(() => {});
+    },
+  };
+}
+
+export async function withDestinationLock(dest, fn, options = {}) {
+  const { lockFile, checkOwnership, release } = await acquireDestinationLock(dest, options);
+  try {
+    return await fn({ lockFile, checkOwnership });
+  } finally {
+    await release();
+  }
+}
+
 export async function replaceInto(tmp, path, { platform = process.platform, renameFn = rename, unlinkFn = unlink } = {}) {
   try {
     await renameFn(tmp, path);
@@ -148,22 +230,33 @@ export async function restoreOriginal(path, originalText) {
   await atomicWriteFile(path, originalText);
 }
 
-export async function writeExistingIfValid(path, originalText, candidateText, verify) {
+export async function writeExistingIfValid(path, originalText, candidateText, verify, options = {}) {
   await assertRegularFileOrMissing(path);
   const result = await verify(candidateText);
-  const current = await readUtf8OrNull(path);
-  if (concurrentChange(current, originalText, candidateText)) {
-    return { ok: false, errors: ["Destination changed during verification; refusing to overwrite."] };
-  }
-  if (!result.ok) {
-    if (current === candidateText) await atomicWriteFile(path, originalText);
-    return { ok: false, errors: result.errors ?? ["Verification failed."] };
-  }
-  await atomicWriteFile(path, candidateText);
-  return { ok: true };
+  return withDestinationLock(
+    path,
+    async ({ checkOwnership }) => {
+      await assertRegularFileOrMissing(path);
+      const current = await readUtf8OrNull(path);
+      if (concurrentChange(current, originalText, candidateText)) {
+        return { ok: false, errors: ["Destination changed during verification; refusing to overwrite."] };
+      }
+      if (!result.ok) {
+        if (current === candidateText) {
+          checkOwnership();
+          await atomicWriteFile(path, originalText);
+        }
+        return { ok: false, errors: result.errors ?? ["Verification failed."] };
+      }
+      checkOwnership();
+      await atomicWriteFile(path, candidateText);
+      return { ok: true };
+    },
+    options,
+  );
 }
 
-export async function publishNewFile(dest, candidateText, verify, { replace = false } = {}) {
+export async function publishNewFile(dest, candidateText, verify, { replace = false, lockTimeoutMs } = {}) {
   await assertRegularFileOrMissing(dest);
   const existing = await lstatOrNull(dest);
   if (existing && !replace) {
@@ -176,12 +269,20 @@ export async function publishNewFile(dest, candidateText, verify, { replace = fa
   }
   await mkdir(dirname(dest), { recursive: true });
   if (replace) {
-    const current = await readUtf8OrNull(dest);
-    if (concurrentChange(current, snapshot, candidateText)) {
-      return { ok: false, errors: ["Destination changed during verification; refusing to overwrite."] };
-    }
-    await atomicWriteFile(dest, candidateText);
-    return { ok: true };
+    return withDestinationLock(
+      dest,
+      async ({ checkOwnership }) => {
+        await assertRegularFileOrMissing(dest);
+        const current = await readUtf8OrNull(dest);
+        if (concurrentChange(current, snapshot, candidateText)) {
+          return { ok: false, errors: ["Destination changed during verification; refusing to overwrite."] };
+        }
+        checkOwnership();
+        await atomicWriteFile(dest, candidateText);
+        return { ok: true };
+      },
+      lockTimeoutMs == null ? {} : { timeoutMs: lockTimeoutMs },
+    );
   }
   try {
     await assertRegularFileOrMissing(dest);

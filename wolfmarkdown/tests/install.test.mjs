@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { mkdir, readlink, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { checkInstall, defaultDestination, installSkill, linkTypeFor, npmExecutable, pathsPointAtSameDir, uninstallSkill } from "../lib/install-targets.mjs";
+import { checkInstall, checkNodeForInstall, defaultDestination, describeNpmFailure, installSkill, linkTypeFor, npmExecutable, pathsPointAtSameDir, uninstallSkill } from "../lib/install-targets.mjs";
 import { candidateBinaries, inspectHealth } from "../lib/doctor.mjs";
 import { skillRoot } from "./helpers.mjs";
 
@@ -168,4 +169,53 @@ test("uninstall removes only the owned symlink", async () => {
     assert.equal(removed, true);
     await assert.rejects(stat(dest));
   });
+});
+
+test("dependency install requires Node.js 22 or newer", () => {
+  assert.throws(() => checkNodeForInstall("20.19.0"), /22\+/);
+  assert.throws(() => checkNodeForInstall("not-a-version"), /22\+/);
+  checkNodeForInstall("22.0.0");
+  checkNodeForInstall(process.versions.node);
+});
+
+test("install.mjs --skip-deps manages links without running npm", async () => {
+  await withHome(async (home) => {
+    const ran = spawnSync(process.execPath, [join(skillRoot, "scripts", "install.mjs"), "--skip-deps"], {
+      encoding: "utf8",
+      env: { ...process.env, WOLFMARKDOWN_HOME: home, HOME: home },
+    });
+    assert.equal(ran.status, 0, ran.stderr);
+    assert.equal(await readlink(join(home, ".agents", "skills", "wolfmarkdown")), skillRoot);
+  });
+});
+
+test("--skip-deps installs links for missing dependencies without invoking npm", async () => {
+  await withHome(async (home) => {
+    const fake = join(home, "fake-skill");
+    await mkdir(fake, { recursive: true });
+    await writeFile(join(fake, "SKILL.md"), "---\nname: wolfmarkdown\n---\n");
+    await writeFile(join(fake, "package.json"), JSON.stringify({ dependencies: { "no-such-package-xyz": "9.9.9" } }));
+    const result = await installSkill({ home, canonicalDir: fake, skipDeps: true });
+    assert.equal(result.status, "created");
+    assert.equal(await readlink(join(home, ".agents", "skills", "wolfmarkdown")), fake);
+  });
+});
+
+test("without --skip-deps, missing dependencies fail fast instead of silently skipping", async () => {
+  await withHome(async (home) => {
+    const fake = join(home, "fake-skill");
+    await mkdir(fake, { recursive: true });
+    await writeFile(join(fake, "SKILL.md"), "---\nname: wolfmarkdown\n---\n");
+    await writeFile(join(fake, "package.json"), JSON.stringify({ dependencies: { "no-such-package-xyz": "9.9.9" } }));
+    await assert.rejects(installSkill({ home, canonicalDir: fake }), /npm ci failed/);
+  });
+});
+
+test("npm failure diagnostics distinguish timeouts, spawn errors, and exit codes", () => {
+  assert.match(describeNpmFailure({ error: { code: "ETIMEDOUT" } }, 120_000), /timed out after 120000ms/);
+  assert.match(describeNpmFailure({ error: { code: "ENOENT", message: "spawn npm ENOENT" } }, 120_000), /ENOENT/);
+  assert.match(
+    describeNpmFailure({ status: 1, stdout: "", stderr: "npm ERR! missing lock file" }, 120_000),
+    /exit 1[\s\S]*missing lock file/,
+  );
 });

@@ -14,8 +14,12 @@ test("collectMarkdownTargets skips symlinks while walking a directory", async ()
   await writeFile(join(dir, "keep.md"), "# Title\n\nKeep this.\n");
   await symlink(real, join(dir, "alias.md"));
   await symlink(nested, join(dir, "linked-dir"));
-  const files = await collectMarkdownTargets([dir]);
+  const { files, skipped } = await collectMarkdownTargets([dir]);
   assert.deepEqual(files, [join(dir, "keep.md"), real].sort((left, right) => left.localeCompare(right)));
+  assert.deepEqual(skipped, [
+    { path: join(dir, "alias.md"), reason: "symlink" },
+    { path: join(dir, "linked-dir"), reason: "symlink" },
+  ]);
   await rm(dir, { recursive: true, force: true });
 });
 
@@ -26,5 +30,21 @@ test("collectMarkdownTargets refuses a top-level symlink", async () => {
   await writeFile(real, "# Title\n\nKeep this.\n");
   await symlink(real, link);
   await assert.rejects(collectMarkdownTargets([link]), /Not a Markdown file or directory/);
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("collectMarkdownTargets finds uppercase extensions and skips build output", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-batch-case-"));
+  await writeFile(join(dir, "upper.MD"), "# Title\n\nKeep this.\n");
+  await mkdir(join(dir, "dist"));
+  await writeFile(join(dir, "dist", "bundle.md"), "# Title\n\nSkip this.\n");
+  await mkdir(join(dir, "build"));
+  await writeFile(join(dir, "build", "out.md"), "# Title\n\nSkip this.\n");
+  const { files, skipped } = await collectMarkdownTargets([dir]);
+  assert.deepEqual(files, [join(dir, "upper.MD")]);
+  assert.deepEqual(skipped, [
+    { path: join(dir, "build"), reason: "excluded-directory" },
+    { path: join(dir, "dist"), reason: "excluded-directory" },
+  ]);
   await rm(dir, { recursive: true, force: true });
 });

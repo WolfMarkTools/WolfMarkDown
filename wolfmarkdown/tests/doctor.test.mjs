@@ -120,7 +120,7 @@ test("absent optional agents are compatible but not detected", async () => {
     assert.equal(copilot.tier, 2);
     const antigravity = health.agents.find((agent) => agent.id === "antigravity");
     assert.equal(antigravity.compatible, true);
-    assert.equal(antigravity.acceptance, "pending");
+    assert.equal(antigravity.acceptance, "tested");
     assert.equal(antigravity.tier, 1);
     const grok = health.agents.find((agent) => agent.id === "grok");
     assert.equal(grok.acceptance, "tested");
@@ -189,6 +189,84 @@ test("Antigravity is not Ready when project root was not inspected and shared is
   });
 });
 
+test("command code and muse code are tested tier-1 hosts", async () => {
+  await withHome(async (home) => {
+    const health = await inspectHealth({ home, canonicalDir: skillRoot });
+    for (const id of ["commandcode", "muse"]) {
+      const agent = health.agents.find((entry) => entry.id === id);
+      assert.ok(agent, `missing catalogue entry ${id}`);
+      assert.equal(agent.compatible, true);
+      assert.equal(agent.acceptance, "tested");
+      assert.equal(agent.tier, 1);
+    }
+  });
+});
+
+test("command code is detected from its home directory", async () => {
+  await withHome(async (home) => {
+    await mkdir(join(home, ".commandcode"));
+    const emptyPath = join(home, "empty-path");
+    await mkdir(emptyPath);
+    const previous = process.env.PATH;
+    process.env.PATH = emptyPath;
+    try {
+      const health = await inspectHealth({ home, canonicalDir: skillRoot });
+      const agent = health.agents.find((entry) => entry.id === "commandcode");
+      assert.equal(agent.detected, true);
+    } finally {
+      process.env.PATH = previous;
+    }
+  });
+});
+
+test("muse code is detected from its binary on PATH", async () => {
+  await withHome(async (home) => {
+    const binDir = join(home, "bin");
+    await mkdir(binDir);
+    await writeFile(join(binDir, "muse"), "#!/bin/sh\n");
+    const previous = process.env.PATH;
+    process.env.PATH = binDir;
+    try {
+      const health = await inspectHealth({ home, canonicalDir: skillRoot });
+      const agent = health.agents.find((entry) => entry.id === "muse");
+      assert.equal(agent.detected, true);
+    } finally {
+      process.env.PATH = previous;
+    }
+  });
+});
+
+test("project-shared hosts are Ready from a project link without a shared link", async () => {
+  await withHome(async (home) => {
+    const projectRoot = join(home, "project");
+    const dest = join(projectRoot, ".agents", "skills", "wolfmarkdown");
+    await mkdir(join(projectRoot, ".agents", "skills"), { recursive: true });
+    await symlink(skillRoot, dest);
+    const health = await inspectHealth({
+      home,
+      canonicalDir: skillRoot,
+      projectRoot,
+      lookFor: {
+        claude: false,
+        codex: false,
+        cursor: false,
+        grok: false,
+        opencode: false,
+        antigravity: true,
+        commandcode: true,
+        muse: true,
+        copilot: false,
+      },
+    });
+    assert.equal(health.discovery.checks.project, true);
+    for (const id of ["commandcode", "muse", "antigravity"]) {
+      const agent = health.agents.find((entry) => entry.id === id);
+      assert.equal(agent.discoveryReady, true);
+      assert.equal(agent.status, "Ready");
+    }
+  });
+});
+
 test("mergeDetection keeps a directory hit when the binary is absent", () => {
   assert.deepEqual(mergeDetection({ cursor: true, grok: false }, { cursor: false, grok: true }), {
     cursor: true,
@@ -218,7 +296,7 @@ test("doctor text output does not label an undetected agent Ready", async () => 
   });
 });
 
-test("doctor text Result is FAIL when discovery is missing", async () => {
+test("doctor text Result is FAIL when discovery is missing but the exit follows runtime health", async () => {
   await withHome(async (home) => {
     const ran = spawnSync(process.execPath, [join(skillRoot, "scripts", "doctor.mjs")], {
       encoding: "utf8",
@@ -229,7 +307,69 @@ test("doctor text Result is FAIL when discovery is missing", async () => {
     assert.match(ran.stdout, /^Overall: FAIL$/mu);
     assert.match(ran.stdout, /Local processing: Available/);
     assert.match(ran.stdout, /Result: FAIL/);
-    assert.notEqual(ran.status, 0);
+    assert.equal(ran.status, 0);
+  });
+});
+
+test("doctor checks the working directory project link", async () => {
+  await withHome(async (home) => {
+    const projectRoot = join(home, "project");
+    await mkdir(join(projectRoot, ".agents", "skills"), { recursive: true });
+    await symlink(skillRoot, join(projectRoot, ".agents", "skills", "wolfmarkdown"));
+    await mkdir(join(home, ".commandcode"));
+    const env = { ...process.env, WOLFMARKDOWN_HOME: home, HOME: home };
+    const ran = spawnSync(process.execPath, [join(skillRoot, "scripts", "doctor.mjs"), "--json"], {
+      encoding: "utf8",
+      cwd: projectRoot,
+      env,
+    });
+    assert.equal(ran.status, 0, ran.stderr);
+    const payload = JSON.parse(ran.stdout);
+    assert.equal(payload.discovery.checks.project, true);
+    const commandcode = payload.agents.find((agent) => agent.id === "commandcode");
+    assert.equal(commandcode.detected, true);
+    assert.equal(commandcode.discoveryReady, true);
+    assert.equal(commandcode.status, "Ready");
+  });
+});
+
+test("doctor without a project link keeps the project check neutral", async () => {
+  await withHome(async (home) => {
+    const plain = join(home, "plain");
+    await mkdir(plain, { recursive: true });
+    const ran = spawnSync(process.execPath, [join(skillRoot, "scripts", "doctor.mjs"), "--json"], {
+      encoding: "utf8",
+      cwd: plain,
+      env: { ...process.env, WOLFMARKDOWN_HOME: home, HOME: home },
+    });
+    const payload = JSON.parse(ran.stdout);
+    assert.equal(payload.discovery.checks.project, true);
+    assert.ok(
+      payload.discovery.errors.every((error) => !/project discovery/i.test(error)),
+      payload.discovery.errors.join("\n"),
+    );
+    assert.ok(payload.discovery.errors.some((error) => /shared agent skills/i.test(error)));
+  });
+});
+
+test("doctor --strict requires overall PASS including discovery", async () => {
+  await withHome(async (home) => {
+    const missing = spawnSync(process.execPath, [join(skillRoot, "scripts", "doctor.mjs"), "--strict"], {
+      encoding: "utf8",
+      env: { ...process.env, WOLFMARKDOWN_HOME: home, HOME: home },
+    });
+    assert.match(missing.stdout, /Result: FAIL/);
+    assert.notEqual(missing.status, 0);
+
+    const dest = join(home, ".agents", "skills", "wolfmarkdown");
+    await mkdir(join(home, ".agents", "skills"), { recursive: true });
+    await symlink(skillRoot, dest);
+    const healthy = spawnSync(process.execPath, [join(skillRoot, "scripts", "doctor.mjs"), "--strict"], {
+      encoding: "utf8",
+      env: { ...process.env, WOLFMARKDOWN_HOME: home, HOME: home },
+    });
+    assert.match(healthy.stdout, /Result: PASS/);
+    assert.equal(healthy.status, 0);
   });
 });
 
@@ -246,7 +386,13 @@ test("doctor JSON and text describe the same healthy runtime with missing discov
     assert.equal(payload.overallOk, false);
     assert.equal(payload.ok, payload.overallOk);
     assert.equal(payload.ok, false);
-    assert.notEqual(jsonRun.status, 0);
+    assert.equal(jsonRun.status, 0);
+
+    const strictRun = spawnSync(process.execPath, [join(skillRoot, "scripts", "doctor.mjs"), "--json", "--strict"], {
+      encoding: "utf8",
+      env,
+    });
+    assert.notEqual(strictRun.status, 0);
 
     const textRun = spawnSync(process.execPath, [join(skillRoot, "scripts", "doctor.mjs")], {
       encoding: "utf8",
@@ -349,9 +495,60 @@ test("runtime failure is a hard local-processing failure even if discovery is he
   });
 });
 
+test("broken discovery links are distinguished from missing links", async () => {
+  await withHome(async (home) => {
+    const dest = join(home, ".agents", "skills", "wolfmarkdown");
+    await mkdir(join(home, ".agents", "skills"), { recursive: true });
+    await symlink(join(home, "does-not-exist"), dest);
+    const health = await inspectHealth({ home, canonicalDir: skillRoot });
+    assert.equal(health.discovery.checks.shared, false);
+    assert.equal(health.runtimeOk, true);
+    assert.ok(health.discovery.errors.some((error) => /broken link/i.test(error)));
+  });
+});
+
+test("claude link problems are reported with their path", async () => {
+  await withHome(async (home) => {
+    const health = await inspectHealth({ home, canonicalDir: skillRoot });
+    assert.equal(health.discovery.checks.claude, false);
+    assert.ok(
+      health.discovery.errors.some((error) => /claude/i.test(error)),
+      health.discovery.errors.join("\n"),
+    );
+  });
+});
+
 test("doctor does not create a global link", async () => {
   await withHome(async (home) => {
     await inspectHealth({ home, canonicalDir: skillRoot });
     await assert.rejects(import("node:fs/promises").then(({ stat }) => stat(join(home, ".agents", "skills", "wolfmarkdown"))));
+  });
+});
+
+test("node 20 fails the runtime version gate and node 22 passes", async () => {
+  await withHome(async (home) => {
+    const old = await inspectHealth({ home, canonicalDir: skillRoot, nodeVersion: "20.19.0" });
+    assert.equal(old.runtime.checks.node, false);
+    assert.equal(old.runtime.ok, false);
+    assert.ok(old.runtime.errors.some((error) => /22\+/.test(error)));
+
+    const current = await inspectHealth({ home, canonicalDir: skillRoot, nodeVersion: "22.0.0" });
+    assert.equal(current.runtime.checks.node, true);
+  });
+});
+
+test("missing scaffold script is a runtime failure", async () => {
+  await withHome(async (home) => {
+    const fake = join(home, "fake-skill");
+    await mkdir(join(fake, "scripts"), { recursive: true });
+    await writeFile(join(fake, "SKILL.md"), "---\nname: wolfmarkdown\n---\n");
+    await writeFile(join(fake, "package.json"), JSON.stringify({ dependencies: {} }));
+    for (const name of ["format-markdown.mjs", "verify-markdown.mjs", "install.mjs", "doctor.mjs"]) {
+      await writeFile(join(fake, "scripts", name), "");
+    }
+    const health = await inspectHealth({ home, canonicalDir: fake });
+    assert.equal(health.runtime.checks.scripts, false);
+    assert.equal(health.runtime.ok, false);
+    assert.ok(health.runtime.errors.some((error) => /scaffold-markdown\.mjs/.test(error)));
   });
 });

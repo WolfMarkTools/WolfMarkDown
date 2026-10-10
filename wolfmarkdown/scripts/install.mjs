@@ -6,11 +6,11 @@ import { checkInstall, installSkill, uninstallSkill } from "../lib/install-targe
 import { skillRoot } from "../lib/paths.mjs";
 
 async function main(argv) {
-  const parsed = parseFlags(argv, ["--check", "--uninstall"]);
+  const parsed = parseFlags(argv, ["--check", "--uninstall", "--skip-deps"]);
   if (parsed.help) {
     printHelp(
       "WolfMarkDown installer",
-      "Usage: node scripts/install.mjs [--check] [--uninstall]",
+      "Usage: node scripts/install.mjs [--check] [--uninstall] [--skip-deps]\n--skip-deps manages discovery links without running npm ci.",
     );
     return 0;
   }
@@ -34,7 +34,7 @@ async function main(argv) {
     process.stdout.write(removed ? "removed\n" : "not installed\n");
     return 0;
   }
-  const result = await installSkill({ home, canonicalDir: skillRoot });
+  const result = await installSkill({ home, canonicalDir: skillRoot, skipDeps: Boolean(parsed.flags["skip-deps"]) });
   process.stdout.write(`shared ${result.destination}: ${result.statuses?.shared ?? result.status}\n`);
   process.stdout.write(`claude: ${result.statuses?.claude ?? "skipped"}\n`);
   return 0;

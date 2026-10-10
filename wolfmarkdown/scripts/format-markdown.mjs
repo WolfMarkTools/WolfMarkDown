@@ -21,6 +21,9 @@ async function main(argv) {
   if (isStdinPath(file) && !parsed.flags.stdout && !parsed.flags.check) {
     throw new Error("Standard input requires --stdout or --check.");
   }
+  if (parsed.flags.stdout && parsed.flags.check) {
+    throw new Error("Conflicting flags: use either --stdout or --check, not both.");
+  }
   const input = await readTextSource(file);
   const formatted = await formatMarkdown(input);
   const label = isStdinPath(file) ? "stdin" : file;

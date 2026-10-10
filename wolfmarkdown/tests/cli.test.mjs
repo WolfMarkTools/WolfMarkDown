@@ -32,3 +32,9 @@ test("treats a lone hyphen as standard input, not a flag", () => {
   assert.deepEqual(parsed.positionals, ["-"]);
   assert.equal(parsed.flags.json, true);
 });
+
+test("stores hyphenated boolean flags under their literal name", () => {
+  const parsed = parseFlags(["--skip-deps"], ["--skip-deps"]);
+  assert.equal(parsed.flags["skip-deps"], true);
+  assert.equal(parsed.flags.skipDeps, undefined);
+});

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -9,7 +9,7 @@ import { parseFlags } from "../lib/cli.mjs";
 import { formatMarkdown } from "../lib/format.mjs";
 import { integrityCoverage } from "../lib/integrity.mjs";
 import { previewDocuments } from "../lib/preview.mjs";
-import { QUALITY_BOUNDARY, toReceipt } from "../lib/report.mjs";
+import { QUALITY_BOUNDARY, skillVersions, toReceipt } from "../lib/report.mjs";
 import { verifyMarkdown } from "../lib/validate.mjs";
 import { readFixture, skillRoot } from "./helpers.mjs";
 
@@ -46,6 +46,12 @@ test("integrity coverage warns about uncovered shapes without failing", async ()
   assert.equal(result.integrityCoverage.checked, false);
 });
 
+test("coverage counts total occurrences per class, not distinct values", () => {
+  const coverage = integrityCoverage("Pay £500 twice: £500.\n");
+  assert.equal(coverage.classes.currency.count, 2);
+  assert.deepEqual(coverage.classes.currency.examples, ["£500"]);
+});
+
 test("three-part versions are not reported as unprotected two-part versions", () => {
   const coverage = integrityCoverage("Release 1.2.3 and v1.2.3-beta.1.\n");
   assert.equal(
@@ -53,6 +59,14 @@ test("three-part versions are not reported as unprotected two-part versions", ()
     false,
   );
   assert.ok(coverage.classes.semver.count >= 1);
+});
+
+test("skillVersions reports the pinned runtime for receipts", async () => {
+  const { version, dependencies } = JSON.parse(await readFile(join(skillRoot, "package.json"), "utf8"));
+  const versions = skillVersions();
+  assert.equal(versions.wolfmarkdown, version);
+  assert.equal(versions.node, process.versions.node);
+  assert.deepEqual(versions.dependencies, dependencies);
 });
 
 test("toReceipt includes hashes, versions, coverage, and the quality boundary", async () => {
@@ -114,7 +128,7 @@ test("verify --json prints a receipt and batch results keep per-file evidence", 
     [join(skillRoot, "scripts", "verify-markdown.mjs"), dir, "--json", "--preview", "--receipt", receiptPath],
     { encoding: "utf8" },
   );
-  const files = await collectMarkdownTargets([dir]);
+  const { files } = await collectMarkdownTargets([dir]);
   assert.deepEqual(files, [first, second].sort((left, right) => left.localeCompare(right)));
   assert.equal(ran.status, 0, ran.stderr);
   const body = JSON.parse(ran.stdout);
@@ -172,6 +186,133 @@ test("verify-markdown.mjs refuses stdin mixed with files or as --integrity-from"
   );
   assert.equal(integrity.status, 1);
   assert.match(integrity.stderr, /cannot read standard input/);
+});
+
+test("verify reports skipped symlinks while still passing", async () => {
+  const formatted = await formatMarkdown("# Title\n\nKeep this.\n");
+  const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-skipped-"));
+  const real = join(dir, "real.md");
+  await writeFile(real, formatted);
+  await symlink(real, join(dir, "alias.md"));
+  const ran = spawnSync(process.execPath, [join(skillRoot, "scripts", "verify-markdown.mjs"), dir, "--json"], {
+    encoding: "utf8",
+  });
+  assert.equal(ran.status, 0, ran.stderr);
+  assert.match(ran.stderr, /Skipped 1 path\(s\) excluded from verification/);
+  assert.match(ran.stderr, /alias\.md \(symlink\)/);
+  const body = JSON.parse(ran.stdout);
+  assert.equal(body.ok, true);
+  assert.deepEqual(body.skipped, [{ path: join(dir, "alias.md"), reason: "symlink" }]);
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("unreadable files produce error receipts instead of aborting the batch", async () => {
+  if (process.getuid?.() === 0) return;
+  const formatted = await formatMarkdown("# Title\n\nKeep this.\n");
+  const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-unreadable-"));
+  await writeFile(join(dir, "good.md"), formatted);
+  const locked = join(dir, "locked.md");
+  await writeFile(locked, formatted);
+  await chmod(locked, 0o000);
+  const receiptPath = join(dir, "receipt.json");
+  const ran = spawnSync(
+    process.execPath,
+    [join(skillRoot, "scripts", "verify-markdown.mjs"), dir, "--json", "--receipt", receiptPath],
+    { encoding: "utf8" },
+  );
+  assert.equal(ran.status, 1, ran.stderr);
+  const body = JSON.parse(ran.stdout);
+  assert.equal(body.ok, false);
+  assert.equal(body.results.length, 2);
+  const failed = body.results.find((entry) => !entry.ok);
+  assert.ok(failed, JSON.stringify(body.results.map((entry) => entry.ok)));
+  assert.ok(failed.errors.some((error) => /Could not read/.test(error)));
+  assert.equal(failed.files.candidate.hash, null);
+  const written = JSON.parse(await readFile(receiptPath, "utf8"));
+  assert.equal(written.ok, false);
+  assert.equal(written.results.length, 2);
+  await chmod(locked, 0o644);
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("a missing integrity source keeps the candidate hash and names the failure", async () => {
+  const { createHash } = await import("node:crypto");
+  const formatted = await formatMarkdown("# Title\n\nKeep this.\n");
+  const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-missing-source-"));
+  const candidate = join(dir, "notes.md");
+  const missing = join(dir, "missing-source.md");
+  await writeFile(candidate, formatted);
+  const ran = spawnSync(
+    process.execPath,
+    [join(skillRoot, "scripts", "verify-markdown.mjs"), candidate, "--integrity-from", missing, "--json"],
+    { encoding: "utf8" },
+  );
+  assert.equal(ran.status, 1, ran.stderr);
+  const body = JSON.parse(ran.stdout);
+  assert.equal(body.ok, false);
+  assert.ok(body.errors.some((error) => /integrity source/.test(error) && /missing-source\.md/.test(error)));
+  assert.equal(body.files.candidate.hash, createHash("sha256").update(formatted).digest("hex"));
+  assert.deepEqual(body.files.integrityFrom, { path: missing, hash: null });
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("a missing explicit path fails fast with a usage error", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-missing-candidate-"));
+  const missing = join(dir, "gone.md");
+  const ran = spawnSync(process.execPath, [join(skillRoot, "scripts", "verify-markdown.mjs"), missing, "--json"], {
+    encoding: "utf8",
+  });
+  assert.equal(ran.status, 1, ran.stderr);
+  assert.match(ran.stderr, /Not a Markdown file or directory/);
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("an unreadable batch file reports an unavailable candidate hash", async () => {
+  if (process.getuid?.() === 0) return;
+  const formatted = await formatMarkdown("# Title\n\nKeep this.\n");
+  const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-unreadable-hash-"));
+  const locked = join(dir, "locked.md");
+  await writeFile(locked, formatted);
+  await chmod(locked, 0o000);
+  const ran = spawnSync(process.execPath, [join(skillRoot, "scripts", "verify-markdown.mjs"), locked, "--json"], {
+    encoding: "utf8",
+  });
+  assert.equal(ran.status, 1, ran.stderr);
+  const body = JSON.parse(ran.stdout);
+  assert.equal(body.ok, false);
+  assert.ok(body.errors.some((error) => /Could not read/.test(error)));
+  assert.deepEqual(body.files.candidate, { path: locked, hash: null });
+  await chmod(locked, 0o644);
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("an all-skipped batch explains itself and still writes a failure receipt", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-all-skipped-"));
+  await mkdir(join(dir, "dist"));
+  await writeFile(join(dir, "dist", "bundle.md"), "# Title\n\nSkipped.\n");
+  const real = join(dir, "real.md");
+  await writeFile(real, "# Title\n\nSkipped.\n");
+  await symlink(real, join(dir, "alias.md"));
+  await rm(real);
+  const receiptPath = join(dir, "receipt.json");
+  const ran = spawnSync(
+    process.execPath,
+    [join(skillRoot, "scripts", "verify-markdown.mjs"), dir, "--json", "--receipt", receiptPath],
+    { encoding: "utf8" },
+  );
+  assert.equal(ran.status, 1, ran.stderr);
+  assert.match(ran.stderr, /Skipped 2 path\(s\) excluded from verification/);
+  const body = JSON.parse(ran.stdout);
+  assert.equal(body.ok, false);
+  assert.match(body.error, /No eligible Markdown files/);
+  assert.deepEqual(body.results, []);
+  assert.equal(body.skipped.length, 2);
+  assert.ok(body.skipped.some((entry) => entry.reason === "excluded-directory"));
+  assert.ok(body.skipped.some((entry) => entry.reason === "symlink"));
+  const written = JSON.parse(await readFile(receiptPath, "utf8"));
+  assert.equal(written.ok, false);
+  assert.deepEqual(written.skipped, body.skipped);
+  await rm(dir, { recursive: true, force: true });
 });
 
 test("verify-markdown.mjs refuses a receipt that would overwrite the candidate or integrity source", async () => {

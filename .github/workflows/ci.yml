@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [20, 22, 24]
+        node: [22, 24]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -27,3 +27,5 @@ jobs:
       - run: npm test
       - run: npx --yes skills-ref@0.1.5 validate ./wolfmarkdown
       - run: node wolfmarkdown/scripts/verify-markdown.mjs examples/mobile-app-migration/output.md --integrity-from examples/mobile-app-migration/input.md
+      - run: node wolfmarkdown/scripts/doctor.mjs
+      - run: node wolfmarkdown/scripts/scaffold-markdown.mjs examples/mobile-app-migration/input.md --json

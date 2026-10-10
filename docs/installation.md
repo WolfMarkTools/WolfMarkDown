@@ -1,6 +1,6 @@
 # Installation and updates
 
-WolfMarkDown requires **Node.js 20 or newer**.
+WolfMarkDown requires **Node.js 22 or newer**.
 
 ## Recommended installation
 
@@ -49,7 +49,7 @@ From a checkout, the equivalent direct command is:
 node wolfmarkdown/scripts/doctor.mjs
 ```
 
-Doctor reports runtime health and discovery health separately. Project-local Clean, Compose, and Verify can proceed when the runtime is healthy even if a global discovery link needs attention.
+Doctor reports runtime health and discovery health separately. Project-local Clean, Compose, and Verify can proceed when the runtime is healthy even if a global discovery link needs attention. The exit code is 0 when the runtime is healthy; use `--strict` to require overall PASS including discovery.
 
 ## Updating a Skills CLI installation
 
@@ -89,6 +89,8 @@ WolfMarkDown uses the Agent Skills directory convention. The current compatibili
 | Claude Code | Optional `.claude/skills` compatibility link | Tested |
 | OpenCode | Shared `.agents/skills` | Tested |
 | Antigravity | Project/local Agent Skills support | Tested |
+| Command Code | Shared `.agents/skills` and `.commandcode/skills` | Tested |
+| Muse Code | Project `.agents/skills` | Tested |
 | GitHub Copilot | Host-specific Agent Skills support | Host validation pending |
 
 This is a discovery and host-acceptance summary, not a promise that every host or model produces identical semantic decisions.

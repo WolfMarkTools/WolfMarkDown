@@ -98,3 +98,13 @@ test("format-markdown.mjs refuses to write standard input without --stdout or --
   assert.equal(ran.status, 1);
   assert.match(ran.stderr, /Standard input requires --stdout or --check/);
 });
+
+test("format-markdown.mjs rejects conflicting --stdout and --check flags", () => {
+  const ran = spawnSync(
+    process.execPath,
+    [join(skillRoot, "scripts", "format-markdown.mjs"), "-", "--stdout", "--check"],
+    { encoding: "utf8", input: "# Title\n\nHello\n" },
+  );
+  assert.equal(ran.status, 1);
+  assert.match(ran.stderr, /either --stdout or --check/);
+});

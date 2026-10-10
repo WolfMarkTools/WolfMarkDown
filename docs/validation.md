@@ -10,7 +10,7 @@ The repository's Node test suite is run with:
 npm test
 ```
 
-At the time of this documentation pass, the suite passes **136 tests**. It covers the current runtime and publication workflow, including:
+At the time of this documentation pass, the suite passes **169 tests**. It covers the current runtime and publication workflow, including:
 
 - CLI flags, batch discovery, standard input, and output-path handling;
 - Doctor runtime/discovery status and installer behaviour;
@@ -35,14 +35,22 @@ The current CI workflow pins the validator at `skills-ref@0.1.5` and validates `
 
 ## CI coverage
 
-The [GitHub Actions CI workflow](../.github/workflows/ci.yml) runs on pushes to `main` and pull requests. Its Node matrix is **20, 22, and 24**. Each matrix job runs:
+The [GitHub Actions CI workflow](../.github/workflows/ci.yml) runs on pushes to `main` and pull requests. Its Node matrix is **22 and 24**. Each matrix job runs:
 
 1. `npm ci --prefix wolfmarkdown`;
 2. `npm test`;
-3. `npx --yes skills-ref@0.1.5 validate ./wolfmarkdown`; and
-4. the public example's integrity-backed verification.
+3. `npx --yes skills-ref@0.1.5 validate ./wolfmarkdown`;
+4. the public example's integrity-backed verification;
+5. `node wolfmarkdown/scripts/doctor.mjs` as a runtime-health gate (exit 0 when the runtime is healthy, independent of discovery links); and
+6. a `scaffold-markdown.mjs --json` smoke run over the public example input.
 
 CI coverage is evidence that these checks ran in those environments. It is not evidence that every agent host accepts the skill or that every model makes the same semantic decisions.
+
+## Dependency advisories
+
+`npm audit` currently reports one low-severity chain: KaTeX prototype pollution ([GHSA-238p-pmpm-9mq7](https://github.com/advisories/GHSA-238p-pmpm-9mq7)) via `micromark-extension-math` inside `markdownlint`. WolfMarkDown never renders math to HTML; `markdownlint` only lints Markdown text, so the rendering conditions required for exploitation do not apply to this tool's runtime use.
+
+A patched KaTeX release exists, but the installed `micromark-extension-math@3.1.0` depends on `katex ^0.16.0`, which cannot resolve to the patched line — the blocker is a compatible upstream dependency change, not the KaTeX patch itself. The deliberate decision is to track the advisory and revisit it when the dependency chain changes, rather than force a breaking `markdownlint` downgrade or an untested override.
 
 ## Semantic and property validation
 

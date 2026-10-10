@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { mkdir, mkdtemp, readFile, rename, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { inferOutputPath, kebabFileName } from "../lib/output-path.mjs";
-import { publishNewFile, replaceInto, restoreOriginal, writeExistingIfValid } from "../lib/publish.mjs";
+import { assertLockOwned, lockFileFor, publishNewFile, replaceInto, restoreOriginal, withDestinationLock, writeExistingIfValid } from "../lib/publish.mjs";
 
 test("failed existing-file update restores the exact original", async () => {
   const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-publish-"));
@@ -150,6 +151,149 @@ test("replace authorisation refuses to overwrite a concurrent edit", async () =>
   assert.equal(outcome.ok, false);
   assert.ok(outcome.errors.some((error) => /changed during verification/i.test(error)));
   assert.equal(await readFile(dest, "utf8"), "# Concurrent edit\n");
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("concurrent same-content publishes serialise without conflict", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-publish-race-"));
+  const target = join(dir, "notes.md");
+  const original = "# Original\n\nKeep this.\n";
+  const candidate = "# Replacement\n\nNew content.\n";
+  await writeFile(target, original);
+  const verify = async () => {
+    await new Promise((resolveSleep) => setTimeout(resolveSleep, 50));
+    return { ok: true };
+  };
+  const [first, second] = await Promise.all([
+    writeExistingIfValid(target, original, candidate, verify),
+    writeExistingIfValid(target, original, candidate, verify),
+  ]);
+  assert.equal(first.ok, true);
+  assert.equal(second.ok, true);
+  assert.equal(await readFile(target, "utf8"), candidate);
+  await assert.rejects(stat(await lockFileFor(target)));
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("a second writer sees a clear conflict after the first writer wins", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-publish-conflict-"));
+  const target = join(dir, "notes.md");
+  const original = "# Original\n\nKeep this.\n";
+  await writeFile(target, original);
+  const first = await writeExistingIfValid(target, original, "# First wins\n", async () => ({ ok: true }));
+  assert.equal(first.ok, true);
+  const second = await writeExistingIfValid(target, original, "# Second loses\n", async () => ({ ok: true }));
+  assert.equal(second.ok, false);
+  assert.ok(second.errors.some((error) => /changed during verification/i.test(error)));
+  assert.equal(await readFile(target, "utf8"), "# First wins\n");
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("a stale destination lock is taken over", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-publish-stale-"));
+  const target = join(dir, "notes.md");
+  await writeFile(target, "# Original\n");
+  const sleeper = spawn("sleep", ["30"], { stdio: "ignore" });
+  await new Promise((resolve) => {
+    sleeper.on("exit", resolve);
+    sleeper.kill();
+  });
+  await writeFile(await lockFileFor(target), JSON.stringify({ pid: sleeper.pid, created: Date.now() }));
+  const outcome = await writeExistingIfValid(target, "# Original\n", "# Replacement\n", async () => ({ ok: true }));
+  assert.equal(outcome.ok, true);
+  assert.equal(await readFile(target, "utf8"), "# Replacement\n");
+  await assert.rejects(stat(await lockFileFor(target)));
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("a live owner's lock is not stolen merely because it is old", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-publish-live-"));
+  const target = join(dir, "notes.md");
+  await writeFile(target, "# Original\n");
+  await writeFile(
+    await lockFileFor(target),
+    JSON.stringify({ pid: process.pid, created: Date.now() - 120_000, nonce: "other" }),
+  );
+  await assert.rejects(
+    writeExistingIfValid(target, "# Original\n", "# Replacement\n", async () => ({ ok: true }), { timeoutMs: 200 }),
+    /locked by another/i,
+  );
+  assert.equal(await readFile(target, "utf8"), "# Original\n");
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("different path spellings of one destination share a lock file", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-publish-canon-"));
+  const realDir = join(dir, "real");
+  await mkdir(realDir);
+  await symlink(realDir, join(dir, "linked"));
+  const direct = await lockFileFor(join(realDir, "notes.md"));
+  assert.equal(direct, await lockFileFor(join(dir, "linked", "notes.md")));
+  assert.equal(direct, await lockFileFor(join(realDir, ".", "notes.md")));
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("assertLockOwned refuses a foreign lock payload", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-publish-owned-"));
+  const target = join(dir, "notes.md");
+  await writeFile(target, "# Original\n");
+  await withDestinationLock(target, async ({ lockFile, payload }) => {
+    await assertLockOwned(lockFile, payload);
+    await assert.rejects(assertLockOwned(lockFile, "bogus"), /refusing to write/i);
+  });
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("concurrent publishers under contention leave exactly one winner", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-publish-stress-"));
+  const target = join(dir, "notes.md");
+  const original = "# Original\n\nKeep this.\n";
+  await writeFile(target, original);
+  const verify = async () => {
+    await new Promise((resolveSleep) => setTimeout(resolveSleep, 20));
+    return { ok: true };
+  };
+  const outcomes = await Promise.all(
+    Array.from({ length: 8 }, (_, index) =>
+      writeExistingIfValid(target, original, `# Candidate ${index}\n`, verify),
+    ),
+  );
+  const winners = outcomes.filter((outcome) => outcome.ok);
+  assert.equal(winners.length, 1);
+  assert.ok(outcomes.filter((outcome) => !outcome.ok).every((outcome) => outcome.errors.some((error) => /changed during verification/i.test(error))));
+  assert.match(await readFile(target, "utf8"), /^# Candidate \d\n$/);
+  await assert.rejects(stat(await lockFileFor(target)));
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("a fresh foreign lock fails with a conflict instead of waiting forever", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-publish-locked-"));
+  const target = join(dir, "notes.md");
+  await writeFile(target, "# Original\n");
+  const sleeper = spawn("sleep", ["30"], { stdio: "ignore" });
+  try {
+    await writeFile(await lockFileFor(target), JSON.stringify({ pid: sleeper.pid, created: Date.now() }));
+    await assert.rejects(
+      writeExistingIfValid(target, "# Original\n", "# Replacement\n", async () => ({ ok: true }), { timeoutMs: 200 }),
+      /locked by another/i,
+    );
+    assert.equal(await readFile(target, "utf8"), "# Original\n");
+  } finally {
+    sleeper.kill();
+  }
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("the destination lock is released when verification fails", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-publish-lockfail-"));
+  const target = join(dir, "notes.md");
+  await writeFile(target, "# Original\n");
+  const outcome = await writeExistingIfValid(target, "# Original\n", "# Broken\n", async () => ({
+    ok: false,
+    errors: ["forced failure"],
+  }));
+  assert.equal(outcome.ok, false);
+  await assert.rejects(stat(await lockFileFor(target)));
   await rm(dir, { recursive: true, force: true });
 });
 

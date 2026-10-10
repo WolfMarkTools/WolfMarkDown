@@ -7,10 +7,10 @@ description: >
   safety. A PASS is Markdown-quality evidence, not factual correctness or
   approval to publish.
 license: MIT
-compatibility: Requires Node.js 20+
+compatibility: Requires Node.js 22+
 metadata:
   author: WolfMark
-  version: "1.0.0"
+  version: "1.0.2"
   display-name: WolfMarkDown
 ---
 
@@ -36,7 +36,7 @@ Resolve every script path from this `SKILL.md` directory.
 - `scripts/verify-markdown.mjs`
 - `scripts/scaffold-markdown.mjs`
 
-Requires Node.js 20 or newer.
+Requires Node.js 22 or newer.
 
 Load references only when the matching phase needs them.
 
@@ -93,6 +93,8 @@ Run `node scripts/doctor.mjs` (add `--json` when a machine-readable result is ea
 
 Distinguish **runtime health** from **discovery health**. Report Runtime, Discovery, and Overall. `ok` and `overallOk` match Overall/Result. Local processing still follows `runtimeOk`.
 
+The exit code is 0 when the runtime is healthy, even if discovery is incomplete. Use `--strict` for an installation audit that requires overall PASS including discovery.
+
 ## Verify
 
 Do not sanitise, compose, or rewrite. Run:
@@ -109,8 +111,8 @@ Before formatting, inspect whether the source contains flattened semantic struct
 2. Snapshot the original bytes to a unique OS temp file. Do not commit it. Do not overwrite it later.
 3. Classify. Sanitise conversation scaffolding only when appropriate. See [conversation-sanitisation.md](references/conversation-sanitisation.md).
 4. Run `node scripts/scaffold-markdown.mjs <snapshot> --json` on the snapshot. Build a source map from that inventory and use the long-document semantic handoff when needed. Classify Preserve, Restructure, Sanitise, Compose, and Unresolved yourself. The scaffold does not rewrite and is not semantic proof. Then repair the candidate and reconcile every clear signal by following [semantic-repair.md](references/semantic-repair.md). Apply [wolfmark-markdown-style.md](references/wolfmark-markdown-style.md) for Markdown conventions. Do not let a syntactically valid, Prettier-stable document substitute for recovered structure. Make the smallest semantic changes needed and do not rewrite already-good prose.
-5. Write a candidate, format with `format-markdown.mjs`, then verify with `--integrity-from` the snapshot, `--preview`, `--receipt` to a temp JSON file, and `--json`. Do not keep or report PASS without that preview and receipt. Preview does not judge whether a semantic decision was correct.
-6. If verification cannot pass, restore the original file from the snapshot before reporting FAIL. See [compose.md](references/compose.md) for publish/restore rules.
+5. Write a candidate to a temporary file (do not edit the live file yet), format with `format-markdown.mjs`, then verify with `--integrity-from` the snapshot, `--preview`, `--receipt` to a temp JSON file, and `--json`. Do not keep or report PASS without that preview and receipt. Preview does not judge whether a semantic decision was correct.
+6. If verification passes, publish the candidate to the live file. If verification cannot pass, restore the original file from the snapshot before reporting FAIL. See [compose.md](references/compose.md) for publish/restore rules.
 7. Confirm format `--check`. Report. Delete the temporary snapshot after the report, on both PASS and FAIL. Do not refresh the snapshot from the edited file.
 
 ## Compose workflow

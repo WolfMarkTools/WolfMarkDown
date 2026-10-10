@@ -3,7 +3,7 @@ import { parse as parseYaml } from "yaml";
 import { visit } from "unist-util-visit";
 import { assertFencesBalanced, lineFenceStates } from "./fences.mjs";
 import { formatMarkdown } from "./format.mjs";
-import { compareTokens, extractTokens, integrityCoverage } from "./integrity.mjs";
+import { compareTokenIndexes, extractTokenIndex, integrityCoverage } from "./integrity.mjs";
 import { createIssue } from "./issues.mjs";
 import { parseMarkdown } from "./parse.mjs";
 import { loadMarkdownlintConfig } from "./paths.mjs";
@@ -39,6 +39,16 @@ export function cells(line) {
   return splitUnescapedPipes(withoutEnd).map((cell) => cell.trim());
 }
 
+function hasUnescapedPipe(line) {
+  for (let index = 0; index < line.length; index += 1) {
+    if (line[index] !== "|") continue;
+    let slashes = 0;
+    for (let cursor = index - 1; cursor >= 0 && line[cursor] === "\\"; cursor -= 1) slashes += 1;
+    if (slashes % 2 === 0) return true;
+  }
+  return false;
+}
+
 function sourceTableIssues(text) {
   const { lines, inside } = lineFenceStates(text);
   const issues = [];
@@ -64,7 +74,7 @@ function sourceTableIssues(text) {
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
-    if (inside[index] || !line.includes("|") || NON_TABLE_PIPE.test(line.trimStart())) {
+    if (inside[index] || !hasUnescapedPipe(line) || NON_TABLE_PIPE.test(line.trimStart())) {
       flush();
       continue;
     }
@@ -104,8 +114,10 @@ function astTableIssues(tree) {
 }
 
 function frontmatterIssues(text) {
-  if (!text.startsWith("---\n") && !text.startsWith("---\r\n")) return [];
-  const rest = text.startsWith("---\r\n") ? text.slice(5) : text.slice(4);
+  const withoutBom = text.startsWith("\uFEFF") ? text.slice(1) : text;
+  const opener = withoutBom.match(/^---[ \t]*\r?\n/u);
+  if (!opener) return [];
+  const rest = withoutBom.slice(opener[0].length);
   const closer = rest.search(/\r?\n---(?:\r?\n|$)/);
   if (closer === -1) return [createIssue("frontmatter", "YAML frontmatter is not closed.")];
   try {
@@ -118,14 +130,16 @@ function frontmatterIssues(text) {
 
 function whitespaceIssues(text) {
   const issues = [];
-  const lines = text.split("\n");
+  const { lines, inside } = lineFenceStates(text);
   lines.forEach((line, index) => {
+    if (inside[index]) return;
     const trailing = line.match(/[ \t]+$/u);
     if (trailing && trailing[0] !== "  ") {
       issues.push(createIssue("whitespace", `Trailing whitespace on line ${index + 1}.`, { line: index + 1 }));
     }
   });
-  if (/\n{4,}/u.test(text)) {
+  const visible = lines.map((line, index) => (inside[index] ? "#" : line)).join("\n");
+  if (/\n{4,}/u.test(visible)) {
     issues.push(createIssue("whitespace", "Document contains three or more consecutive blank lines."));
   }
   if (!text.endsWith("\n")) {
@@ -215,25 +229,45 @@ export async function verifyMarkdown(text, { integrityFromText } = {}) {
   checks.idempotence = twice === formatted;
   if (!checks.idempotence) issues.push(createIssue("idempotence", "Formatter is not idempotent."));
 
+  const coverageNotes = [];
   const coverageSource = integrityFromText ?? text;
   if (integrityFromText != null) {
     const integrityStarted = performance.now();
-    const comparison = compareTokens(extractTokens(integrityFromText), text);
+    const comparison = compareTokenIndexes(extractTokenIndex(integrityFromText), extractTokenIndex(text));
     checks.integrity = comparison.ok;
     for (const token of comparison.missing) {
       issues.push(createIssue("integrity", `Protected token missing: ${token}`));
+    }
+    for (const entry of comparison.mutated) {
+      issues.push(createIssue("integrity", `Protected ${entry.class} value changed: ${entry.token} → ${entry.changedTo}`));
+    }
+    for (const token of comparison.weakMissing) {
+      coverageNotes.push({
+        code: "possibly-changed-prose-token",
+        message: "A prose identifier changed or was removed; review whether the edit was intended.",
+        examples: [token],
+      });
+    }
+    for (const entry of comparison.decreased) {
+      coverageNotes.push({
+        code: "decreased-protected-token-count",
+        message: `Protected token appears fewer times (${entry.before} → ${entry.after}): ${entry.token}`,
+        examples: [entry.token],
+      });
     }
     timings.integrityMs = elapsedMs(integrityStarted);
   }
 
   timings.totalMs = elapsedMs(started);
   const errors = issues.map((issue) => issue.message);
+  const coverage = integrityCoverage(coverageSource, { checked: integrityFromText != null });
+  coverage.warnings.push(...coverageNotes);
   return {
     ok: issues.length === 0,
     checks,
     errors,
     issues,
-    integrityCoverage: integrityCoverage(coverageSource, { checked: integrityFromText != null }),
+    integrityCoverage: coverage,
     timings,
   };
 }

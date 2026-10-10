@@ -10,12 +10,21 @@ export function hashText(text) {
 }
 
 export function skillVersions() {
-  const manifest = loadJson("package.json");
-  return {
-    wolfmarkdown: manifest.version,
-    node: process.versions.node,
-    dependencies: { ...(manifest.dependencies ?? {}) },
-  };
+  try {
+    const manifest = loadJson("package.json");
+    return {
+      wolfmarkdown: manifest.version,
+      node: process.versions.node,
+      dependencies: { ...(manifest.dependencies ?? {}) },
+    };
+  } catch (error) {
+    return {
+      wolfmarkdown: null,
+      node: process.versions.node,
+      dependencies: {},
+      error: error?.message ?? String(error),
+    };
+  }
 }
 
 export function formatErrors(errors, issues) {

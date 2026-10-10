@@ -32,6 +32,40 @@ test("escaped pipes inside table cells do not change the cell count", async () =
   assert.equal(result.ok, true, result.errors.join("\n"));
 });
 
+test("prose with only escaped pipes is not a table", async () => {
+  const markdown = ["# Title", "", "a \\| b", "c \\| d", ""].join("\n");
+  const result = await verifyMarkdown(await formatMarkdown(markdown));
+  assert.equal(result.ok, true, result.errors.join("\n"));
+  const unformatted = await verifyMarkdown(markdown);
+  assert.ok(
+    unformatted.issues.every((issue) => issue.check !== "tables"),
+    unformatted.errors.join("\n"),
+  );
+});
+
+test("blank lines split by a fence are not merged into one run", async () => {
+  const markdown = ["# Title", "", "", "```text", "code", "```", "", "", "Done.", ""].join("\n");
+  const result = await verifyMarkdown(await formatMarkdown(markdown));
+  assert.equal(result.ok, true, result.errors.join("\n"));
+});
+test("consecutive blank lines inside a fence are not whitespace errors", async () => {
+  const markdown = ["# Title", "", "```text", "a", "", "", "", "b", "```", ""].join("\n");
+  const result = await verifyMarkdown(markdown);
+  assert.equal(result.ok, true, result.errors.join("\n"));
+});
+
+test("BOM-prefixed frontmatter is recognised", async () => {
+  const valid = await verifyMarkdown("\uFEFF---\ntitle: Test\n---\n\n# Hello\n");
+  assert.equal(valid.ok, true, valid.errors.join("\n"));
+  const unclosed = await verifyMarkdown("\uFEFF---\ntitle: Test\n");
+  assert.equal(unclosed.ok, false);
+  assert.ok(unclosed.errors.some((error) => /frontmatter/i.test(error)));
+});
+
+test("frontmatter opener with trailing spaces is recognised", async () => {
+  const result = await verifyMarkdown("---  \ntitle: Test\n---\n\n# Hello\n");
+  assert.equal(result.ok, true, result.errors.join("\n"));
+});
 test("broken tables fail verification", async () => {
   const result = await verifyMarkdown(await readFixture("broken-tables.md"));
   assert.equal(result.ok, false);

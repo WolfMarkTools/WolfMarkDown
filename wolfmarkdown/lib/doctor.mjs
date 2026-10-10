@@ -1,11 +1,11 @@
-import { accessSync } from "node:fs";
+import { accessSync, lstatSync } from "node:fs";
 import { access, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { delimiter, join } from "node:path";
 import { inspectDependencies } from "./dependencies.mjs";
 import { claudeDestination, defaultDestination, pathsPointAtSameDir } from "./install-targets.mjs";
 
-const REQUIRED_SCRIPTS = ["format-markdown.mjs", "verify-markdown.mjs", "install.mjs", "doctor.mjs"];
+const REQUIRED_SCRIPTS = ["format-markdown.mjs", "verify-markdown.mjs", "scaffold-markdown.mjs", "install.mjs", "doctor.mjs"];
 
 async function exists(path) {
   try {
@@ -24,7 +24,16 @@ async function discoveryPointsAt(destination, canonicalDir, errors, label) {
     errors.push(`${label} at ${destination} points at ${destReal}, expected ${canonReal}.`);
     return false;
   } catch {
-    errors.push(`${label} is missing at ${destination}.`);
+    let missing = true;
+    try {
+      lstatSync(destination);
+      missing = false;
+    } catch {
+      missing = true;
+    }
+    errors.push(
+      missing ? `${label} is missing at ${destination}.` : `${label} at ${destination} is a broken link.`,
+    );
     return false;
   }
 }
@@ -46,8 +55,8 @@ export async function inspectHealth({
   const discovery = { checks: {}, errors: [] };
 
   const major = Number(String(nodeVersion).replace(/^v/u, "").split(".")[0]);
-  runtime.checks.node = Number.isFinite(major) && major >= 20;
-  if (!runtime.checks.node) runtime.errors.push(`Node.js 20+ required, found ${nodeVersion}.`);
+  runtime.checks.node = Number.isFinite(major) && major >= 22;
+  if (!runtime.checks.node) runtime.errors.push(`Node.js 22+ required, found ${nodeVersion}.`);
 
   try {
     runtime.checks.skillDir = (await stat(canonicalDir)).isDirectory();
@@ -77,7 +86,7 @@ export async function inspectHealth({
     "Shared Agent Skills",
   );
   discovery.checks.global = discovery.checks.shared;
-  discovery.checks.claude = await discoveryPointsAt(claudeDestination(home), canonicalDir, [], "Claude Code");
+  discovery.checks.claude = await discoveryPointsAt(claudeDestination(home), canonicalDir, discovery.errors, "Claude Code");
   let projectReady = false;
   if (projectRoot) {
     discovery.checks.project = await discoveryPointsAt(

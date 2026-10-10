@@ -218,7 +218,7 @@ test("doctor text output does not label an undetected agent Ready", async () => 
   });
 });
 
-test("doctor text Result is FAIL when discovery is missing", async () => {
+test("doctor text Result is FAIL when discovery is missing but the exit follows runtime health", async () => {
   await withHome(async (home) => {
     const ran = spawnSync(process.execPath, [join(skillRoot, "scripts", "doctor.mjs")], {
       encoding: "utf8",
@@ -229,7 +229,28 @@ test("doctor text Result is FAIL when discovery is missing", async () => {
     assert.match(ran.stdout, /^Overall: FAIL$/mu);
     assert.match(ran.stdout, /Local processing: Available/);
     assert.match(ran.stdout, /Result: FAIL/);
-    assert.notEqual(ran.status, 0);
+    assert.equal(ran.status, 0);
+  });
+});
+
+test("doctor --strict requires overall PASS including discovery", async () => {
+  await withHome(async (home) => {
+    const missing = spawnSync(process.execPath, [join(skillRoot, "scripts", "doctor.mjs"), "--strict"], {
+      encoding: "utf8",
+      env: { ...process.env, WOLFMARKDOWN_HOME: home, HOME: home },
+    });
+    assert.match(missing.stdout, /Result: FAIL/);
+    assert.notEqual(missing.status, 0);
+
+    const dest = join(home, ".agents", "skills", "wolfmarkdown");
+    await mkdir(join(home, ".agents", "skills"), { recursive: true });
+    await symlink(skillRoot, dest);
+    const healthy = spawnSync(process.execPath, [join(skillRoot, "scripts", "doctor.mjs"), "--strict"], {
+      encoding: "utf8",
+      env: { ...process.env, WOLFMARKDOWN_HOME: home, HOME: home },
+    });
+    assert.match(healthy.stdout, /Result: PASS/);
+    assert.equal(healthy.status, 0);
   });
 });
 
@@ -246,7 +267,13 @@ test("doctor JSON and text describe the same healthy runtime with missing discov
     assert.equal(payload.overallOk, false);
     assert.equal(payload.ok, payload.overallOk);
     assert.equal(payload.ok, false);
-    assert.notEqual(jsonRun.status, 0);
+    assert.equal(jsonRun.status, 0);
+
+    const strictRun = spawnSync(process.execPath, [join(skillRoot, "scripts", "doctor.mjs"), "--json", "--strict"], {
+      encoding: "utf8",
+      env,
+    });
+    assert.notEqual(strictRun.status, 0);
 
     const textRun = spawnSync(process.execPath, [join(skillRoot, "scripts", "doctor.mjs")], {
       encoding: "utf8",
@@ -349,9 +376,60 @@ test("runtime failure is a hard local-processing failure even if discovery is he
   });
 });
 
+test("broken discovery links are distinguished from missing links", async () => {
+  await withHome(async (home) => {
+    const dest = join(home, ".agents", "skills", "wolfmarkdown");
+    await mkdir(join(home, ".agents", "skills"), { recursive: true });
+    await symlink(join(home, "does-not-exist"), dest);
+    const health = await inspectHealth({ home, canonicalDir: skillRoot });
+    assert.equal(health.discovery.checks.shared, false);
+    assert.equal(health.runtimeOk, true);
+    assert.ok(health.discovery.errors.some((error) => /broken link/i.test(error)));
+  });
+});
+
+test("claude link problems are reported with their path", async () => {
+  await withHome(async (home) => {
+    const health = await inspectHealth({ home, canonicalDir: skillRoot });
+    assert.equal(health.discovery.checks.claude, false);
+    assert.ok(
+      health.discovery.errors.some((error) => /claude/i.test(error)),
+      health.discovery.errors.join("\n"),
+    );
+  });
+});
+
 test("doctor does not create a global link", async () => {
   await withHome(async (home) => {
     await inspectHealth({ home, canonicalDir: skillRoot });
     await assert.rejects(import("node:fs/promises").then(({ stat }) => stat(join(home, ".agents", "skills", "wolfmarkdown"))));
+  });
+});
+
+test("node 20 fails the runtime version gate and node 22 passes", async () => {
+  await withHome(async (home) => {
+    const old = await inspectHealth({ home, canonicalDir: skillRoot, nodeVersion: "20.19.0" });
+    assert.equal(old.runtime.checks.node, false);
+    assert.equal(old.runtime.ok, false);
+    assert.ok(old.runtime.errors.some((error) => /22\+/.test(error)));
+
+    const current = await inspectHealth({ home, canonicalDir: skillRoot, nodeVersion: "22.0.0" });
+    assert.equal(current.runtime.checks.node, true);
+  });
+});
+
+test("missing scaffold script is a runtime failure", async () => {
+  await withHome(async (home) => {
+    const fake = join(home, "fake-skill");
+    await mkdir(join(fake, "scripts"), { recursive: true });
+    await writeFile(join(fake, "SKILL.md"), "---\nname: wolfmarkdown\n---\n");
+    await writeFile(join(fake, "package.json"), JSON.stringify({ dependencies: {} }));
+    for (const name of ["format-markdown.mjs", "verify-markdown.mjs", "install.mjs", "doctor.mjs"]) {
+      await writeFile(join(fake, "scripts", name), "");
+    }
+    const health = await inspectHealth({ home, canonicalDir: fake });
+    assert.equal(health.runtime.checks.scripts, false);
+    assert.equal(health.runtime.ok, false);
+    assert.ok(health.runtime.errors.some((error) => /scaffold-markdown\.mjs/.test(error)));
   });
 });

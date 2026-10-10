@@ -8,7 +8,7 @@ Keep the Markdown your agent produces. WolfMarkDown is an agent publishing workf
 
 **Agent judgement for structure. Deterministic tooling for proof.**
 
-[![Latest release](https://img.shields.io/github/v/release/WolfMarkTools/WolfMarkDown)](https://github.com/WolfMarkTools/WolfMarkDown/releases/latest) [![CI](https://github.com/WolfMarkTools/WolfMarkDown/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/WolfMarkTools/WolfMarkDown/actions/workflows/ci.yml) [![MIT licence](https://img.shields.io/github/license/WolfMarkTools/WolfMarkDown)](./LICENSE) [![Node.js 20+](https://img.shields.io/badge/Node.js-20%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Latest release](https://img.shields.io/github/v/release/WolfMarkTools/WolfMarkDown)](https://github.com/WolfMarkTools/WolfMarkDown/releases/latest) [![CI](https://github.com/WolfMarkTools/WolfMarkDown/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/WolfMarkTools/WolfMarkDown/actions/workflows/ci.yml) [![MIT licence](https://img.shields.io/github/license/WolfMarkTools/WolfMarkDown)](./LICENSE) [![Node.js 22+](https://img.shields.io/badge/Node.js-22%2B-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 
 ## What WolfMarkDown is
 
@@ -18,7 +18,7 @@ It keeps semantic decisions with the agent and uses deterministic tooling to pro
 
 ## Install
 
-Requires **Node.js 20 or newer**.
+Requires **Node.js 22 or newer**.
 
 The recommended installation is the Agent Skills CLI:
 

@@ -1,7 +1,7 @@
 import { lstat, readdir } from "node:fs/promises";
 import { join } from "node:path";
 
-const SKIP_DIRS = new Set(["node_modules", ".git"]);
+const SKIP_DIRS = new Set(["node_modules", ".git", "dist", "build", ".next", "coverage"]);
 
 async function lstatOrNull(path) {
   try {
@@ -14,19 +14,22 @@ async function lstatOrNull(path) {
 
 export async function collectMarkdownTargets(paths) {
   const files = [];
+  const skipped = [];
   for (const path of paths) {
     const info = await lstatOrNull(path);
     if (!info || info.isSymbolicLink()) {
       throw new Error(`Not a Markdown file or directory: ${path}`);
     }
-    if (info.isDirectory()) await walkDir(path, files);
+    if (info.isDirectory()) await walkDir(path, files, skipped);
     else if (info.isFile()) files.push(path);
     else throw new Error(`Not a Markdown file or directory: ${path}`);
   }
-  return [...new Set(files)].sort((left, right) => left.localeCompare(right));
+  const unique = [...new Set(files)].sort((left, right) => left.localeCompare(right));
+  skipped.sort((left, right) => left.path.localeCompare(right.path));
+  return { files: unique, skipped };
 }
 
-async function walkDir(dir, files) {
+async function walkDir(dir, files, skipped) {
   const dirInfo = await lstatOrNull(dir);
   if (!dirInfo || dirInfo.isSymbolicLink() || !dirInfo.isDirectory()) return;
   const entries = await readdir(dir, { withFileTypes: true });
@@ -34,13 +37,20 @@ async function walkDir(dir, files) {
   for (const entry of entries) {
     const path = join(dir, entry.name);
     const info = await lstatOrNull(path);
-    if (!info || info.isSymbolicLink()) continue;
-    if (info.isDirectory()) {
-      if (SKIP_DIRS.has(entry.name)) continue;
-      await walkDir(path, files);
+    if (!info) continue;
+    if (info.isSymbolicLink()) {
+      skipped.push({ path, reason: "symlink" });
       continue;
     }
-    if (info.isFile() && entry.name.endsWith(".md")) files.push(path);
+    if (info.isDirectory()) {
+      if (SKIP_DIRS.has(entry.name)) {
+        skipped.push({ path, reason: "excluded-directory" });
+        continue;
+      }
+      await walkDir(path, files, skipped);
+      continue;
+    }
+    if (info.isFile() && entry.name.toLowerCase().endsWith(".md")) files.push(path);
   }
 }
 

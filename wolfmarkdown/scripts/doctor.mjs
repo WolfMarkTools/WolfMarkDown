@@ -6,9 +6,12 @@ import { parseFlags, printHelp } from "../lib/cli.mjs";
 import { skillRoot } from "../lib/paths.mjs";
 
 async function main(argv) {
-  const parsed = parseFlags(argv, ["--json"]);
+  const parsed = parseFlags(argv, ["--json", "--strict"]);
   if (parsed.help) {
-    printHelp("WolfMarkDown doctor", "Usage: node scripts/doctor.mjs [--json]");
+    printHelp(
+      "WolfMarkDown doctor",
+      "Usage: node scripts/doctor.mjs [--json] [--strict]\nExit code is 0 when the runtime is healthy (local processing available). Use --strict to require overall PASS including discovery.",
+    );
     return 0;
   }
   if (parsed.positionals.length > 0) {
@@ -56,7 +59,8 @@ async function main(argv) {
     const errors = [...health.runtime.errors, ...health.discovery.errors];
     if (errors.length > 0) process.stderr.write(`${errors.map((error) => `- ${error}`).join("\n")}\n`);
   }
-  return overallOk ? 0 : 1;
+  if (parsed.flags.strict) return overallOk ? 0 : 1;
+  return runtimeOk ? 0 : 1;
 }
 
 main(process.argv.slice(2)).then(

@@ -43,7 +43,7 @@ test("SKILL.md satisfies the WolfMarkDown contract", async () => {
   assert.match(frontmatter, /description:\s*>\n\s*WolfMarkDown turns messy agent output/u);
   assert.doesNotMatch(frontmatter, /Use when the user asks/u);
   assert.match(text, /license: MIT/);
-  assert.match(text, /compatibility: Requires Node\.js 20\+/);
+  assert.match(text, /compatibility: Requires Node\.js 22\+/);
   assert.match(text, /metadata:/);
   for (const trigger of triggers) {
     if (trigger === "/wolfmarkdown") {

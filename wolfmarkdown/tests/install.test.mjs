@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { mkdir, readlink, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { checkInstall, defaultDestination, installSkill, linkTypeFor, npmExecutable, pathsPointAtSameDir, uninstallSkill } from "../lib/install-targets.mjs";
+import { checkInstall, checkNodeForInstall, defaultDestination, installSkill, linkTypeFor, npmExecutable, pathsPointAtSameDir, uninstallSkill } from "../lib/install-targets.mjs";
 import { candidateBinaries, inspectHealth } from "../lib/doctor.mjs";
 import { skillRoot } from "./helpers.mjs";
 
@@ -167,5 +168,23 @@ test("uninstall removes only the owned symlink", async () => {
     const removed = await uninstallSkill({ home, canonicalDir: skillRoot });
     assert.equal(removed, true);
     await assert.rejects(stat(dest));
+  });
+});
+
+test("dependency install requires Node.js 22 or newer", () => {
+  assert.throws(() => checkNodeForInstall("20.19.0"), /22\+/);
+  assert.throws(() => checkNodeForInstall("not-a-version"), /22\+/);
+  checkNodeForInstall("22.0.0");
+  checkNodeForInstall(process.versions.node);
+});
+
+test("install.mjs --skip-deps manages links without running npm", async () => {
+  await withHome(async (home) => {
+    const ran = spawnSync(process.execPath, [join(skillRoot, "scripts", "install.mjs"), "--skip-deps"], {
+      encoding: "utf8",
+      env: { ...process.env, WOLFMARKDOWN_HOME: home, HOME: home },
+    });
+    assert.equal(ran.status, 0, ran.stderr);
+    assert.equal(await readlink(join(home, ".agents", "skills", "wolfmarkdown")), skillRoot);
   });
 });

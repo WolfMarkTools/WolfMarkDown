@@ -1,6 +1,6 @@
 # Installation and updates
 
-WolfMarkDown requires **Node.js 20 or newer**.
+WolfMarkDown requires **Node.js 22 or newer**.
 
 ## Recommended installation
 

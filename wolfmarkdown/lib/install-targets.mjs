@@ -36,6 +36,17 @@ function installError(message) {
   return error;
 }
 
+export function nodeMajorForInstall(nodeVersion = process.versions.node) {
+  return Number(String(nodeVersion).replace(/^v/u, "").split(".")[0]);
+}
+
+export function checkNodeForInstall(nodeVersion = process.versions.node) {
+  const major = nodeMajorForInstall(nodeVersion);
+  if (!Number.isFinite(major) || major < 22) {
+    throw installError(`Node.js 22+ required to install WolfMarkDown dependencies, found ${nodeVersion}.`);
+  }
+}
+
 async function readExisting(dest) {
   try {
     return await lstat(dest);
@@ -85,10 +96,19 @@ async function dependenciesNeedRepair(canonicalDir) {
   return !deps.ok;
 }
 
-function installDependencies(canonicalDir, platform = process.platform) {
-  const command = spawnSync(npmExecutable(platform), ["ci"], { cwd: canonicalDir, stdio: "inherit" });
+function installDependencies(canonicalDir, platform = process.platform, { timeoutMs = 120_000 } = {}) {
+  checkNodeForInstall();
+  const command = spawnSync(npmExecutable(platform), ["ci"], {
+    cwd: canonicalDir,
+    stdio: "pipe",
+    encoding: "utf8",
+    timeout: timeoutMs,
+  });
   if (command.status !== 0) {
-    throw installError("npm ci failed while installing WolfMarkDown dependencies.");
+    const output = [command.stdout, command.stderr].filter(Boolean).join("\n").slice(-2000);
+    throw installError(
+      `npm ci failed while installing WolfMarkDown dependencies (exit ${command.status ?? "timeout"}).${output ? `\n${output}` : ""}`,
+    );
   }
 }
 

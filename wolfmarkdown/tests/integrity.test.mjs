@@ -170,4 +170,54 @@ test("changing one of two identical payments fails verification", async () => {
   assert.ok(mutated.errors.some((error) => /changed: £500 → £50/.test(error)), mutated.errors.join("\n"));
   const consolidated = await verifyMarkdown("The payment is £500.\n", { integrityFromText: source });
   assert.equal(consolidated.ok, true, consolidated.errors.join("\n"));
+  const consolidationWarning = consolidated.integrityCoverage.warnings.find(
+    (item) => item.code === "decreased-protected-token-count",
+  );
+  assert.ok(consolidationWarning, JSON.stringify(consolidated.integrityCoverage.warnings));
+  assert.match(consolidationWarning.message, /2 → 1/);
+});
+
+test("shifting occurrences between existing values fails verification", async () => {
+  const result = await verifyMarkdown("£500, £50, £50.\n", { integrityFromText: "£500, £500, £50.\n" });
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some((error) => /changed: £500 → £50/.test(error)), result.errors.join("\n"));
+});
+
+test("replacing a single protected value fails verification", async () => {
+  const result = await verifyMarkdown("Pay £50.\n", { integrityFromText: "Pay £500.\n" });
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some((error) => /missing: £500/.test(error)), result.errors.join("\n"));
+});
+
+test("removing a strongly protected value entirely fails verification", async () => {
+  const result = compareTokenIndexes(
+    extractTokenIndex("See https://example.com/a.\n"),
+    extractTokenIndex("See the docs.\n"),
+  );
+  assert.equal(result.ok, false);
+  assert.ok(result.missing.includes("https://example.com/a"));
+});
+
+test("moving a literal into code still passes without false mutations", async () => {
+  const promoted = await verifyMarkdown("The `£500` fee.\n", { integrityFromText: "The £500 fee.\n" });
+  assert.equal(promoted.ok, true, promoted.errors.join("\n"));
+});
+
+test("moving a literal out of code fails on structure, not on value mutation", async () => {
+  const demoted = await verifyMarkdown("The £500 fee.\n", { integrityFromText: "The `£500` fee.\n" });
+  assert.equal(demoted.ok, false);
+  assert.ok(demoted.errors.some((error) => /missing: `£500`/.test(error)), demoted.errors.join("\n"));
+  assert.ok(!demoted.errors.some((error) => /changed:/.test(error)), demoted.errors.join("\n"));
+});
+
+test("identical values across prose and link nodes count actual occurrences", async () => {
+  const before = extractTokenIndex("See https://example.com/a and [the docs](https://example.com/a).\n");
+  assert.equal(before.classes.url.get("https://example.com/a"), 2);
+  const result = await verifyMarkdown("See https://example.com/a.\n", {
+    integrityFromText: "See https://example.com/a and [the docs](https://example.com/a).\n",
+  });
+  assert.equal(result.ok, true, result.errors.join("\n"));
+  const warning = result.integrityCoverage.warnings.find((item) => item.code === "decreased-protected-token-count");
+  assert.ok(warning, JSON.stringify(result.integrityCoverage.warnings));
+  assert.match(warning.message, /2 → 1/);
 });

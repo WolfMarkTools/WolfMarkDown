@@ -10,7 +10,7 @@ The repository's Node test suite is run with:
 npm test
 ```
 
-At the time of this documentation pass, the suite passes **169 tests**. It covers the current runtime and publication workflow, including:
+At the time of this documentation pass, the suite passes **188 tests**. It covers the current runtime and publication workflow, including:
 
 - CLI flags, batch discovery, standard input, and output-path handling;
 - Doctor runtime/discovery status and installer behaviour;

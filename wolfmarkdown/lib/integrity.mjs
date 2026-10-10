@@ -10,7 +10,7 @@ const ISO_DATE_RE = /\b\d{4}-\d{2}-\d{2}\b/g;
 const UK_DATE_RE = /\b\d{2}\/\d{2}\/\d{4}\b/g;
 const PERCENT_RE = /\b\d+(?:\.\d+)? ?%/g;
 const CURRENCY_RE = /[$£€]\d[\d,]*(?:\.\d+)?/g;
-const ENV_SCOPED_RE = /\$\{([A-Z][A-Z0-9_]{2,})\}|\$([A-Z][A-Z0-9_]{2,})\b/g;
+const ENV_SCOPED_RE = /\$\{[A-Z][A-Z0-9_]{2,}\}|\$[A-Z][A-Z0-9_]{2,}\b/g;
 const ENV_ASSIGN_RE = /\b([A-Z][A-Z0-9]*_[A-Z0-9_]+)=/g;
 const ENV_NAME_RE = /\b[A-Z][A-Z0-9]*_[A-Z0-9_]+\b/g;
 const CAMEL_IDENT_RE = /\b[a-z][a-zA-Z0-9]*[A-Z][a-zA-Z0-9]*\b/g;
@@ -58,14 +58,6 @@ function addExact(index, className, value) {
   if (!value) return;
   index.tokens.add(value);
   countUp(index.classes[className], value);
-}
-
-function add(index, className, value, inCode = false) {
-  const token = cleanToken(value);
-  if (!token) return;
-  index.tokens.add(token);
-  countUp(index.classes[className], token);
-  if (inCode) index.codeTokens.add(token);
 }
 
 function addAll(index, text, pattern, className, options = {}) {
@@ -141,33 +133,57 @@ function assignStrength(index) {
 export function extractTokenIndex(text) {
   const index = { tokens: new Set(), classes: emptyClasses(), codeTokens: new Set(), strong: new Set() };
   const { tree } = parseMarkdown(text);
-  visit(tree, (node) => {
-    if (node.type === "inlineCode" && node.value) {
-      addExact(index, "inlineCode", node.value);
-      addExact(index, "inlineCode", `\`${node.value}\``);
+  // Each text region is scanned exactly once so occurrence counts reflect
+  // actual appearances rather than extraction matches.
+  visit(tree, (node, _childIndex, parent) => {
+    if (!node || typeof node.type !== "string") return;
+    if ((node.type === "inlineCode" || node.type === "code") && typeof node.value === "string") {
+      if (node.type === "inlineCode") {
+        addExact(index, "inlineCode", node.value);
+        addExact(index, "inlineCode", `\`${node.value}\``);
+      } else {
+        addExact(index, "fencedCode", node.value.replace(/\n$/u, ""));
+      }
       extractRegexClasses(index, node.value, true);
-    } else if (node.type === "code" && node.value) {
-      addExact(index, "fencedCode", node.value.replace(/\n$/u, ""));
-      extractRegexClasses(index, node.value, true);
-    } else if (node.type === "link" && node.url) {
+      return;
+    }
+    if (
+      (node.type === "link" || node.type === "definition" || node.type === "image") &&
+      typeof node.url === "string"
+    ) {
       addExact(index, "url", node.url);
-    } else if (node.type === "text" && node.value) {
-      extractRegexClasses(index, node.value, false);
+      if (typeof node.title === "string" && node.title) extractRegexClasses(index, node.title, false);
+      return;
+    }
+    if ((node.type === "text" || node.type === "html") && typeof node.value === "string") {
+      // GFM autolinks duplicate the URL into a child text node; the link
+      // handler already records the URL exactly, so scanning it again would
+      // count one occurrence twice.
+      const isAutolinkText =
+        node.type === "text" &&
+        (parent?.type === "link" || parent?.type === "image") &&
+        typeof parent.url === "string" &&
+        node.value === parent.url;
+      if (!isAutolinkText) extractRegexClasses(index, node.value, false);
     }
   });
-  extractRegexClasses(index, text, false);
+  extractFrontmatterTokens(index, text);
   assignStrength(index);
   return index;
 }
 
-export function extractTokens(text) {
-  return extractTokenIndex(text).tokens;
+function extractFrontmatterTokens(index, text) {
+  const withoutBom = text.startsWith("\uFEFF") ? text.slice(1) : text;
+  const opener = withoutBom.match(/^---[ \t]*\r?\n/u);
+  if (!opener) return;
+  const rest = withoutBom.slice(opener[0].length);
+  const closer = rest.search(/\r?\n---(?:\r?\n|$)/);
+  if (closer === -1) return;
+  extractRegexClasses(index, rest.slice(0, closer), false);
 }
 
-export function tokenCount(index, token) {
-  let total = 0;
-  for (const map of Object.values(index.classes)) total += map.get(token) ?? 0;
-  return total;
+export function extractTokens(text) {
+  return extractTokenIndex(text).tokens;
 }
 
 export function weakTokens(index) {
@@ -180,13 +196,6 @@ export function weakTokens(index) {
   return weak;
 }
 
-export function tokenClass(index, token) {
-  for (const [name, map] of Object.entries(index.classes)) {
-    if (map.has(token)) return name;
-  }
-  return null;
-}
-
 export function compareTokenIndexes(before, after) {
   const missing = [];
   for (const token of before.strong) {
@@ -196,28 +205,36 @@ export function compareTokenIndexes(before, after) {
   for (const token of weakTokens(before)) {
     if (!after.tokens.has(token)) weakMissing.push(token);
   }
+  // Per-class occurrence shifts among strong tokens. A decreased token paired
+  // with an increased token of the same class reads as an unauthorised change
+  // (including an existing value gaining occurrences at another's expense);
+  // a lone decrease reads as consolidation and only warns.
   const decreased = [];
-  for (const token of before.strong) {
-    const beforeCount = tokenCount(before, token);
-    const afterCount = tokenCount(after, token);
-    if (afterCount > 0 && afterCount < beforeCount) decreased.push({ token, before: beforeCount, after: afterCount });
+  const increasedByClass = new Map();
+  const names = new Set([...Object.keys(before.classes), ...Object.keys(after.classes)]);
+  for (const name of names) {
+    const beforeMap = before.classes[name] ?? new Map();
+    const afterMap = after.classes[name] ?? new Map();
+    for (const [token, beforeCount] of beforeMap) {
+      if (!before.strong.has(token)) continue;
+      const afterCount = afterMap.get(token) ?? 0;
+      if (afterCount === 0) continue;
+      if (afterCount < beforeCount) decreased.push({ token, class: name, before: beforeCount, after: afterCount });
+    }
+    for (const [token, afterCount] of afterMap) {
+      if (!after.strong.has(token)) continue;
+      if (afterCount > (beforeMap.get(token) ?? 0)) {
+        if (!increasedByClass.has(name)) increasedByClass.set(name, []);
+        increasedByClass.get(name).push(token);
+      }
+    }
   }
-  // A decreased token alongside a newly appearing token of the same class
-  // reads as an unauthorised change rather than consolidation, so it fails.
-  const gainedByClass = new Map();
-  for (const token of after.strong) {
-    if (before.tokens.has(token)) continue;
-    const name = tokenClass(after, token) ?? "unknown";
-    if (!gainedByClass.has(name)) gainedByClass.set(name, []);
-    gainedByClass.get(name).push(token);
-  }
-  for (const list of gainedByClass.values()) list.sort();
+  for (const list of increasedByClass.values()) list.sort();
   const mutated = [];
   const remainingDecreased = [];
   for (const entry of decreased) {
-    const name = tokenClass(before, entry.token);
-    const gained = name ? (gainedByClass.get(name) ?? []) : [];
-    if (gained.length > 0) mutated.push({ token: entry.token, changedTo: gained.shift(), class: name });
+    const gained = increasedByClass.get(entry.class) ?? [];
+    if (gained.length > 0) mutated.push({ token: entry.token, changedTo: gained.shift(), class: entry.class });
     else remainingDecreased.push(entry);
   }
   return { missing, mutated, weakMissing, decreased: remainingDecreased, ok: missing.length === 0 && mutated.length === 0 };

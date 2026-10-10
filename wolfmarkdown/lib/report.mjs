@@ -66,11 +66,14 @@ export function toReceipt(result, {
     qualityBoundary: QUALITY_BOUNDARY,
     versions: skillVersions(),
     files: {
-      candidate: candidatePath == null ? null : { path: candidatePath, hash: hashText(candidateText) },
-      integrityFrom:
-        integrityFromText == null
+      candidate:
+        candidatePath == null
           ? null
-          : { path: integrityFromPath, hash: hashText(integrityFromText) },
+          : { path: candidatePath, hash: candidateText == null ? null : hashText(candidateText) },
+      integrityFrom:
+        integrityFromPath == null
+          ? null
+          : { path: integrityFromPath, hash: integrityFromText == null ? null : hashText(integrityFromText) },
     },
     issues: [...(result.issues ?? [])],
     warnings: [...(result.integrityCoverage?.warnings ?? [])],

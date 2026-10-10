@@ -34,7 +34,7 @@ async function main(argv) {
     process.stdout.write(removed ? "removed\n" : "not installed\n");
     return 0;
   }
-  const result = await installSkill({ home, canonicalDir: skillRoot, skipDeps: Boolean(parsed.flags.skipDeps) });
+  const result = await installSkill({ home, canonicalDir: skillRoot, skipDeps: Boolean(parsed.flags["skip-deps"]) });
   process.stdout.write(`shared ${result.destination}: ${result.statuses?.shared ?? result.status}\n`);
   process.stdout.write(`claude: ${result.statuses?.claude ?? "skipped"}\n`);
   return 0;

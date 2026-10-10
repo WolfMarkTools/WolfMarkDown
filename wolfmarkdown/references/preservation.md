@@ -2,7 +2,7 @@
 
 Treat supplied source as potentially private or live operational research. Keep snapshots in OS temporary storage only; never commit a user-provided source, failed output, wallet address, transaction signature, or other live identifier merely to reproduce a formatting failure. Public regression fixtures must be synthetic or explicitly redacted while retaining the structural signal under test. Synthetic or redacted failed-output evidence is permitted when it contains no live research, secrets, or identifiers and exists only to document a failure pattern.
 
-Integrity compares the snapshot with the final document by protected-token class and occurrence. Tokens in always-protected classes, exact code spans, and scoped variable forms must still appear unchanged, or verification fails. Identifiers that appear only in ordinary prose are reported as warnings rather than failures, and a protected token that survives fewer times than before is also reported as a warning. Additional tokens are always allowed.
+Integrity compares the snapshot with the final document by protected-token class and occurrence. Each actual appearance contributes once to its class count: prose, code spans, link targets, frontmatter values, and embedded HTML are each scanned a single time. Tokens in always-protected classes, exact code spans, and scoped variable forms must still appear unchanged, or verification fails. Identifiers that appear only in ordinary prose are reported as warnings rather than failures, and a protected token that survives fewer times than before is also reported as a warning. Additional tokens are always allowed.
 
 The verifier compares the snapshot with `verify-markdown.mjs --integrity-from <snapshot>`.
 

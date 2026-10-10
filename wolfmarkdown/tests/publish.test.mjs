@@ -1,11 +1,35 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rename, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { once } from "node:events";
+import { mkdir, mkdtemp, readFile, rename, rm, stat, symlink, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { inferOutputPath, kebabFileName } from "../lib/output-path.mjs";
-import { assertLockOwned, lockFileFor, publishNewFile, replaceInto, restoreOriginal, withDestinationLock, writeExistingIfValid } from "../lib/publish.mjs";
+import { lockFileFor, publishNewFile, replaceInto, restoreOriginal, withDestinationLock, writeExistingIfValid } from "../lib/publish.mjs";
+import { skillRoot } from "./helpers.mjs";
+
+const HOLDER_SCRIPT = [
+  "const lockfile = (await import('proper-lockfile')).default;",
+  "await lockfile.lock(process.argv[1], { realpath: false, lockfilePath: process.argv[2], retries: 0 });",
+  "setInterval(() => {}, 1000);",
+].join("\n");
+
+async function waitFor(condition, timeoutMs = 5000) {
+  const started = Date.now();
+  for (;;) {
+    if (await condition()) return;
+    if (Date.now() - started > timeoutMs) throw new Error("Timed out waiting for test setup.");
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+}
+
+function lockExists(path) {
+  return stat(path).then(
+    () => true,
+    () => false,
+  );
+}
 
 test("failed existing-file update restores the exact original", async () => {
   const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-publish-"));
@@ -189,35 +213,40 @@ test("a second writer sees a clear conflict after the first writer wins", async 
   await rm(dir, { recursive: true, force: true });
 });
 
-test("a stale destination lock is taken over", async () => {
+test("a lock abandoned by a killed process is recovered", async () => {
   const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-publish-stale-"));
   const target = join(dir, "notes.md");
   await writeFile(target, "# Original\n");
-  const sleeper = spawn("sleep", ["30"], { stdio: "ignore" });
-  await new Promise((resolve) => {
-    sleeper.on("exit", resolve);
-    sleeper.kill();
+  const lockPath = await lockFileFor(target);
+  const holder = spawn(process.execPath, ["--input-type=module", "-e", HOLDER_SCRIPT, target, lockPath], {
+    cwd: skillRoot,
+    stdio: "ignore",
   });
-  await writeFile(await lockFileFor(target), JSON.stringify({ pid: sleeper.pid, created: Date.now() }));
-  const outcome = await writeExistingIfValid(target, "# Original\n", "# Replacement\n", async () => ({ ok: true }));
-  assert.equal(outcome.ok, true);
-  assert.equal(await readFile(target, "utf8"), "# Replacement\n");
-  await assert.rejects(stat(await lockFileFor(target)));
+  try {
+    await waitFor(() => lockExists(lockPath));
+    holder.kill("SIGKILL");
+    await once(holder, "exit");
+    await utimes(lockPath, new Date(0), new Date(0));
+    const outcome = await writeExistingIfValid(target, "# Original\n", "# Replacement\n", async () => ({ ok: true }));
+    assert.equal(outcome.ok, true);
+    assert.equal(await readFile(target, "utf8"), "# Replacement\n");
+    await assert.rejects(stat(lockPath));
+  } finally {
+    holder.kill();
+  }
   await rm(dir, { recursive: true, force: true });
 });
 
-test("a live owner's lock is not stolen merely because it is old", async () => {
+test("a live owner's lock is never reclaimed by age", async () => {
   const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-publish-live-"));
   const target = join(dir, "notes.md");
   await writeFile(target, "# Original\n");
-  await writeFile(
-    await lockFileFor(target),
-    JSON.stringify({ pid: process.pid, created: Date.now() - 120_000, nonce: "other" }),
-  );
-  await assert.rejects(
-    writeExistingIfValid(target, "# Original\n", "# Replacement\n", async () => ({ ok: true }), { timeoutMs: 200 }),
-    /locked by another/i,
-  );
+  await withDestinationLock(target, async () => {
+    await assert.rejects(
+      writeExistingIfValid(target, "# Original\n", "# Replacement\n", async () => ({ ok: true }), { timeoutMs: 300 }),
+      /locked by another/i,
+    );
+  });
   assert.equal(await readFile(target, "utf8"), "# Original\n");
   await rm(dir, { recursive: true, force: true });
 });
@@ -233,13 +262,12 @@ test("different path spellings of one destination share a lock file", async () =
   await rm(dir, { recursive: true, force: true });
 });
 
-test("assertLockOwned refuses a foreign lock payload", async () => {
+test("lock ownership check passes while the lock is held", async () => {
   const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-publish-owned-"));
   const target = join(dir, "notes.md");
   await writeFile(target, "# Original\n");
-  await withDestinationLock(target, async ({ lockFile, payload }) => {
-    await assertLockOwned(lockFile, payload);
-    await assert.rejects(assertLockOwned(lockFile, "bogus"), /refusing to write/i);
+  await withDestinationLock(target, async ({ checkOwnership }) => {
+    checkOwnership();
   });
   await rm(dir, { recursive: true, force: true });
 });
@@ -266,20 +294,24 @@ test("concurrent publishers under contention leave exactly one winner", async ()
   await rm(dir, { recursive: true, force: true });
 });
 
-test("a fresh foreign lock fails with a conflict instead of waiting forever", async () => {
+test("a live foreign lock fails with a conflict instead of waiting forever", async () => {
   const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-publish-locked-"));
   const target = join(dir, "notes.md");
   await writeFile(target, "# Original\n");
-  const sleeper = spawn("sleep", ["30"], { stdio: "ignore" });
+  const lockPath = await lockFileFor(target);
+  const holder = spawn(process.execPath, ["--input-type=module", "-e", HOLDER_SCRIPT, target, lockPath], {
+    cwd: skillRoot,
+    stdio: "ignore",
+  });
   try {
-    await writeFile(await lockFileFor(target), JSON.stringify({ pid: sleeper.pid, created: Date.now() }));
+    await waitFor(() => lockExists(lockPath));
     await assert.rejects(
-      writeExistingIfValid(target, "# Original\n", "# Replacement\n", async () => ({ ok: true }), { timeoutMs: 200 }),
+      writeExistingIfValid(target, "# Original\n", "# Replacement\n", async () => ({ ok: true }), { timeoutMs: 300 }),
       /locked by another/i,
     );
     assert.equal(await readFile(target, "utf8"), "# Original\n");
   } finally {
-    sleeper.kill();
+    holder.kill();
   }
   await rm(dir, { recursive: true, force: true });
 });

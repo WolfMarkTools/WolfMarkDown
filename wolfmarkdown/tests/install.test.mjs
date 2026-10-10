@@ -5,7 +5,7 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { checkInstall, checkNodeForInstall, defaultDestination, installSkill, linkTypeFor, npmExecutable, pathsPointAtSameDir, uninstallSkill } from "../lib/install-targets.mjs";
+import { checkInstall, checkNodeForInstall, defaultDestination, describeNpmFailure, installSkill, linkTypeFor, npmExecutable, pathsPointAtSameDir, uninstallSkill } from "../lib/install-targets.mjs";
 import { candidateBinaries, inspectHealth } from "../lib/doctor.mjs";
 import { skillRoot } from "./helpers.mjs";
 
@@ -187,4 +187,35 @@ test("install.mjs --skip-deps manages links without running npm", async () => {
     assert.equal(ran.status, 0, ran.stderr);
     assert.equal(await readlink(join(home, ".agents", "skills", "wolfmarkdown")), skillRoot);
   });
+});
+
+test("--skip-deps installs links for missing dependencies without invoking npm", async () => {
+  await withHome(async (home) => {
+    const fake = join(home, "fake-skill");
+    await mkdir(fake, { recursive: true });
+    await writeFile(join(fake, "SKILL.md"), "---\nname: wolfmarkdown\n---\n");
+    await writeFile(join(fake, "package.json"), JSON.stringify({ dependencies: { "no-such-package-xyz": "9.9.9" } }));
+    const result = await installSkill({ home, canonicalDir: fake, skipDeps: true });
+    assert.equal(result.status, "created");
+    assert.equal(await readlink(join(home, ".agents", "skills", "wolfmarkdown")), fake);
+  });
+});
+
+test("without --skip-deps, missing dependencies fail fast instead of silently skipping", async () => {
+  await withHome(async (home) => {
+    const fake = join(home, "fake-skill");
+    await mkdir(fake, { recursive: true });
+    await writeFile(join(fake, "SKILL.md"), "---\nname: wolfmarkdown\n---\n");
+    await writeFile(join(fake, "package.json"), JSON.stringify({ dependencies: { "no-such-package-xyz": "9.9.9" } }));
+    await assert.rejects(installSkill({ home, canonicalDir: fake }), /npm ci failed/);
+  });
+});
+
+test("npm failure diagnostics distinguish timeouts, spawn errors, and exit codes", () => {
+  assert.match(describeNpmFailure({ error: { code: "ETIMEDOUT" } }, 120_000), /timed out after 120000ms/);
+  assert.match(describeNpmFailure({ error: { code: "ENOENT", message: "spawn npm ENOENT" } }, 120_000), /ENOENT/);
+  assert.match(
+    describeNpmFailure({ status: 1, stdout: "", stderr: "npm ERR! missing lock file" }, 120_000),
+    /exit 1[\s\S]*missing lock file/,
+  );
 });

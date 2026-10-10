@@ -221,10 +221,91 @@ test("unreadable files produce error receipts instead of aborting the batch", as
   const failed = body.results.find((entry) => !entry.ok);
   assert.ok(failed, JSON.stringify(body.results.map((entry) => entry.ok)));
   assert.ok(failed.errors.some((error) => /Could not read/.test(error)));
+  assert.equal(failed.files.candidate.hash, null);
   const written = JSON.parse(await readFile(receiptPath, "utf8"));
   assert.equal(written.ok, false);
   assert.equal(written.results.length, 2);
   await chmod(locked, 0o644);
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("a missing integrity source keeps the candidate hash and names the failure", async () => {
+  const { createHash } = await import("node:crypto");
+  const formatted = await formatMarkdown("# Title\n\nKeep this.\n");
+  const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-missing-source-"));
+  const candidate = join(dir, "notes.md");
+  const missing = join(dir, "missing-source.md");
+  await writeFile(candidate, formatted);
+  const ran = spawnSync(
+    process.execPath,
+    [join(skillRoot, "scripts", "verify-markdown.mjs"), candidate, "--integrity-from", missing, "--json"],
+    { encoding: "utf8" },
+  );
+  assert.equal(ran.status, 1, ran.stderr);
+  const body = JSON.parse(ran.stdout);
+  assert.equal(body.ok, false);
+  assert.ok(body.errors.some((error) => /integrity source/.test(error) && /missing-source\.md/.test(error)));
+  assert.equal(body.files.candidate.hash, createHash("sha256").update(formatted).digest("hex"));
+  assert.deepEqual(body.files.integrityFrom, { path: missing, hash: null });
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("a missing explicit path fails fast with a usage error", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-missing-candidate-"));
+  const missing = join(dir, "gone.md");
+  const ran = spawnSync(process.execPath, [join(skillRoot, "scripts", "verify-markdown.mjs"), missing, "--json"], {
+    encoding: "utf8",
+  });
+  assert.equal(ran.status, 1, ran.stderr);
+  assert.match(ran.stderr, /Not a Markdown file or directory/);
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("an unreadable batch file reports an unavailable candidate hash", async () => {
+  if (process.getuid?.() === 0) return;
+  const formatted = await formatMarkdown("# Title\n\nKeep this.\n");
+  const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-unreadable-hash-"));
+  const locked = join(dir, "locked.md");
+  await writeFile(locked, formatted);
+  await chmod(locked, 0o000);
+  const ran = spawnSync(process.execPath, [join(skillRoot, "scripts", "verify-markdown.mjs"), locked, "--json"], {
+    encoding: "utf8",
+  });
+  assert.equal(ran.status, 1, ran.stderr);
+  const body = JSON.parse(ran.stdout);
+  assert.equal(body.ok, false);
+  assert.ok(body.errors.some((error) => /Could not read/.test(error)));
+  assert.deepEqual(body.files.candidate, { path: locked, hash: null });
+  await chmod(locked, 0o644);
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("an all-skipped batch explains itself and still writes a failure receipt", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-all-skipped-"));
+  await mkdir(join(dir, "dist"));
+  await writeFile(join(dir, "dist", "bundle.md"), "# Title\n\nSkipped.\n");
+  const real = join(dir, "real.md");
+  await writeFile(real, "# Title\n\nSkipped.\n");
+  await symlink(real, join(dir, "alias.md"));
+  await rm(real);
+  const receiptPath = join(dir, "receipt.json");
+  const ran = spawnSync(
+    process.execPath,
+    [join(skillRoot, "scripts", "verify-markdown.mjs"), dir, "--json", "--receipt", receiptPath],
+    { encoding: "utf8" },
+  );
+  assert.equal(ran.status, 1, ran.stderr);
+  assert.match(ran.stderr, /Skipped 2 path\(s\) excluded from verification/);
+  const body = JSON.parse(ran.stdout);
+  assert.equal(body.ok, false);
+  assert.match(body.error, /No eligible Markdown files/);
+  assert.deepEqual(body.results, []);
+  assert.equal(body.skipped.length, 2);
+  assert.ok(body.skipped.some((entry) => entry.reason === "excluded-directory"));
+  assert.ok(body.skipped.some((entry) => entry.reason === "symlink"));
+  const written = JSON.parse(await readFile(receiptPath, "utf8"));
+  assert.equal(written.ok, false);
+  assert.deepEqual(written.skipped, body.skipped);
   await rm(dir, { recursive: true, force: true });
 });
 

@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
+import lockfile from "proper-lockfile";
 import { lstat, mkdir, open, readFile, realpath, rename, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, basename, join, resolve } from "node:path";
@@ -103,8 +104,17 @@ function concurrentChange(current, originalText, candidateText) {
   return current != null && current !== originalText && current !== candidateText;
 }
 
-const LOCK_STALE_MS = 30_000;
-const LOCK_MAX_HOLD_MS = 10 * 60_000;
+const LOCK_STALE_MS = 10_000;
+
+// Locks coordinate cooperating WolfMarkDown processes running as the same OS
+// user. Each user gets a private lock namespace so one user's directory can
+// never block another user's publishing. Locking is advisory: writers that do
+// not use these helpers are still caught by the concurrent-change check, but
+// their writes are not serialised.
+function lockScopeDir() {
+  const uid = typeof process.getuid === "function" ? process.getuid() : null;
+  return uid == null ? join(tmpdir(), "wolfmarkdown-locks") : join(tmpdir(), `wolfmarkdown-locks-uid${uid}`);
+}
 
 async function canonicalDest(dest) {
   try {
@@ -120,88 +130,58 @@ async function canonicalDest(dest) {
 
 export async function lockFileFor(dest) {
   const key = createHash("sha256").update(await canonicalDest(dest)).digest("hex");
-  return join(tmpdir(), "wolfmarkdown-locks", `${key}.lock`);
+  return join(lockScopeDir(), `${key}.lock`);
 }
-
-function pidAlive(pid) {
-  if (!Number.isInteger(pid)) return false;
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return error?.code !== "ESRCH";
-  }
-}
-
-function lockIsStale(raw) {
-  if (!raw) return true;
-  let data;
-  try {
-    data = JSON.parse(raw);
-  } catch {
-    return true;
-  }
-  if (!data || typeof data.created !== "number") return true;
-  if (Number.isInteger(data.pid) && pidAlive(data.pid)) {
-    return Date.now() - data.created > LOCK_MAX_HOLD_MS;
-  }
-  if (Number.isInteger(data.pid)) return true;
-  return Date.now() - data.created > LOCK_STALE_MS;
-}
-
-const sleep = (ms) => new Promise((resolveSleep) => setTimeout(resolveSleep, ms));
 
 function lockConflict(dest) {
   return new Error(`Destination is locked by another WolfMarkDown operation: ${dest}`);
 }
 
+// Exclusive publishing uses proper-lockfile (atomic directory creation, live
+// mtime refresh while held, stale takeover, compromise detection) over a
+// canonical per-destination key. A live lock is never reclaimed by age: only
+// a lock whose owner is gone, or whose mtime has gone stale, can be taken
+// over. Waiting is bounded by timeoutMs.
 export async function acquireDestinationLock(dest, { timeoutMs = 10_000 } = {}) {
+  const canonical = await canonicalDest(dest);
   const lockFile = await lockFileFor(dest);
   await mkdir(dirname(lockFile), { recursive: true });
-  const payload = JSON.stringify({ pid: process.pid, created: Date.now(), nonce: randomBytes(8).toString("hex") });
-  const started = Date.now();
-  for (;;) {
-    try {
-      const handle = await open(lockFile, "wx");
-      try {
-        await handle.writeFile(payload);
-      } finally {
-        await handle.close();
-      }
-    } catch (error) {
-      if (error?.code !== "EEXIST") throw error;
-      if (Date.now() - started >= timeoutMs) throw lockConflict(dest);
-      if (!lockIsStale(await readUtf8OrNull(lockFile))) {
-        await sleep(25);
-        continue;
-      }
-      // Possibly stale: confirm it is unchanged before removing, so a fresh
-      // lock acquired concurrently is never deleted.
-      const first = await readUtf8OrNull(lockFile);
-      if (!lockIsStale(first) || first !== (await readUtf8OrNull(lockFile))) continue;
-      await unlink(lockFile).catch(() => {});
-      continue;
-    }
-    // Confirm the lock on disk is the one just created: a concurrent stale
-    // takeover may have removed it between creation and this read.
-    if ((await readUtf8OrNull(lockFile)) === payload) return { lockFile, payload };
-    if (Date.now() - started >= timeoutMs) throw lockConflict(dest);
-    await sleep(25);
+  let compromised = null;
+  let release;
+  try {
+    release = await lockfile.lock(canonical, {
+      realpath: false,
+      lockfilePath: lockFile,
+      stale: LOCK_STALE_MS,
+      retries:
+        timeoutMs <= 0
+          ? 0
+          : { retries: Math.max(1, Math.ceil(timeoutMs / 50)), minTimeout: 25, maxTimeout: 50 },
+      onCompromised: (error) => {
+        compromised = error;
+      },
+    });
+  } catch (error) {
+    if (error?.code === "ELOCKED") throw lockConflict(dest);
+    throw error;
   }
-}
-
-export async function assertLockOwned(lockFile, payload) {
-  if ((await readUtf8OrNull(lockFile)) !== payload) {
-    throw new Error(`Lost the destination lock for ${lockFile}; refusing to write.`);
-  }
+  return {
+    lockFile,
+    checkOwnership: () => {
+      if (compromised) throw new Error(`Destination lock was compromised for ${dest}; refusing to write.`);
+    },
+    release: async () => {
+      await release().catch(() => {});
+    },
+  };
 }
 
 export async function withDestinationLock(dest, fn, options = {}) {
-  const { lockFile, payload } = await acquireDestinationLock(dest, options);
+  const { lockFile, checkOwnership, release } = await acquireDestinationLock(dest, options);
   try {
-    return await fn({ lockFile, payload });
+    return await fn({ lockFile, checkOwnership });
   } finally {
-    if ((await readUtf8OrNull(lockFile)) === payload) await unlink(lockFile).catch(() => {});
+    await release();
   }
 }
 
@@ -255,7 +235,7 @@ export async function writeExistingIfValid(path, originalText, candidateText, ve
   const result = await verify(candidateText);
   return withDestinationLock(
     path,
-    async ({ lockFile, payload }) => {
+    async ({ checkOwnership }) => {
       await assertRegularFileOrMissing(path);
       const current = await readUtf8OrNull(path);
       if (concurrentChange(current, originalText, candidateText)) {
@@ -263,12 +243,12 @@ export async function writeExistingIfValid(path, originalText, candidateText, ve
       }
       if (!result.ok) {
         if (current === candidateText) {
-          await assertLockOwned(lockFile, payload);
+          checkOwnership();
           await atomicWriteFile(path, originalText);
         }
         return { ok: false, errors: result.errors ?? ["Verification failed."] };
       }
-      await assertLockOwned(lockFile, payload);
+      checkOwnership();
       await atomicWriteFile(path, candidateText);
       return { ok: true };
     },
@@ -291,13 +271,13 @@ export async function publishNewFile(dest, candidateText, verify, { replace = fa
   if (replace) {
     return withDestinationLock(
       dest,
-      async ({ lockFile, payload }) => {
+      async ({ checkOwnership }) => {
         await assertRegularFileOrMissing(dest);
         const current = await readUtf8OrNull(dest);
         if (concurrentChange(current, snapshot, candidateText)) {
           return { ok: false, errors: ["Destination changed during verification; refusing to overwrite."] };
         }
-        await assertLockOwned(lockFile, payload);
+        checkOwnership();
         await atomicWriteFile(dest, candidateText);
         return { ok: true };
       },

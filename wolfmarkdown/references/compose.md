@@ -41,4 +41,6 @@ For new files: write a temporary candidate. Publish to the destination only afte
 
 Use `lib/publish.mjs` helpers when they fit: `writeExistingIfValid`, `publishNewFile`, `restoreOriginal`. Those helpers write atomically, refuse to follow symlink destinations, and refuse to overwrite a file that changed after the snapshot was taken.
 
+Destination locks coordinate cooperating WolfMarkDown processes running as the same OS user; each user has a private lock namespace, so locking never depends on shared-directory permissions. Locking is advisory, not mandatory: a writer that bypasses these helpers is not serialised, but its change is still detected by the concurrent-change check on the next operation. Only one cooperating publisher can hold a destination lock at a time, a crashed holder's lock is recoverable, and a live holder's lock is never reclaimed by age.
+
 Before publishing, run Verify with `--preview` and `--receipt` against the source snapshot. Do not publish or report PASS without both. The preview reports observable structure, scaffolding counts, and protected-token preservation. It does not judge whether a semantic decision is correct.

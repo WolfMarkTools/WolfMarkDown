@@ -19,6 +19,7 @@
   "dependencies": {
     "markdownlint": "0.41.1",
     "prettier": "3.9.9",
+    "proper-lockfile": "4.1.2",
     "remark": "15.0.1",
     "remark-frontmatter": "5.0.0",
     "remark-gfm": "4.0.1",

@@ -167,7 +167,7 @@ See [detailed compatibility information](./docs/installation.md#compatibility). 
 - [Verification, integrity, and PASS](./docs/verification.md)
 - [Architecture and semantic repair](./docs/architecture.md)
 - [Validation and evidence](./docs/validation.md)
-- [v1.0.0 GitHub Release](https://github.com/WolfMarkTools/WolfMarkDown/releases/tag/v1.0.0)
+- [Latest GitHub Release](https://github.com/WolfMarkTools/WolfMarkDown/releases/latest)
 - [Canonical Agent Skill](./wolfmarkdown/SKILL.md)
 - [Contributing](./CONTRIBUTING.md)
 

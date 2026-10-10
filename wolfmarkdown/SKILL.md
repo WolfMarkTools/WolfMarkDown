@@ -95,6 +95,8 @@ Distinguish **runtime health** from **discovery health**. Report Runtime, Discov
 
 The exit code is 0 when the runtime is healthy, even if discovery is incomplete. Use `--strict` for an installation audit that requires overall PASS including discovery.
 
+Run Doctor from the project directory to include that checkout's discovery link in the check; otherwise only the shared and compatibility links are inspected.
+
 ## Verify
 
 Do not sanitise, compose, or rewrite. Run:

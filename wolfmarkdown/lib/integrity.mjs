@@ -302,8 +302,14 @@ export function integrityCoverage(text, { checked = false } = {}) {
   const index = extractTokenIndex(text);
   const classes = Object.fromEntries(
     TOKEN_CLASS_NAMES.map((name) => {
-      const values = [...index.classes[name].keys()];
-      return [name, { count: values.length, examples: values.slice(0, 3) }];
+      const entries = [...index.classes[name].entries()];
+      return [
+        name,
+        {
+          count: entries.reduce((sum, [, occurrences]) => sum + occurrences, 0),
+          examples: entries.slice(0, 3).map(([token]) => token),
+        },
+      ];
     }),
   );
   const twoPart = uniqueMatches(text, TWO_PART_VERSION_RE);

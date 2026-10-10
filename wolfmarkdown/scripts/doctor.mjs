@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 
 import { homedir } from "node:os";
+import { lstat } from "node:fs/promises";
+import { join } from "node:path";
 import { inspectHealth } from "../lib/doctor.mjs";
 import { parseFlags, printHelp } from "../lib/cli.mjs";
 import { skillRoot } from "../lib/paths.mjs";
@@ -18,7 +20,7 @@ async function main(argv) {
     throw new Error("Unexpected arguments.");
   }
   const home = process.env.WOLFMARKDOWN_HOME || process.env.HOME || homedir();
-  const health = await inspectHealth({ home, canonicalDir: skillRoot });
+  const health = await inspectHealth({ home, canonicalDir: skillRoot, projectRoot: await projectRootWithLink() });
   const runtimeOk = Boolean(health.runtimeOk ?? health.runtime.ok);
   const discoveryOk = Boolean(health.discoveryOk ?? health.discovery.ok);
   const overallOk = Boolean(health.overallOk ?? (runtimeOk && discoveryOk));
@@ -61,6 +63,19 @@ async function main(argv) {
   }
   if (parsed.flags.strict) return overallOk ? 0 : 1;
   return runtimeOk ? 0 : 1;
+}
+
+async function projectRootWithLink() {
+  // Only treat the working directory as a project when it actually carries a
+  // discovery link; otherwise the project check stays neutral and a healthy
+  // shared installation is unaffected by where Doctor happens to run.
+  const cwd = process.cwd();
+  try {
+    await lstat(join(cwd, ".agents", "skills", "wolfmarkdown"));
+    return cwd;
+  } catch {
+    return undefined;
+  }
 }
 
 main(process.argv.slice(2)).then(

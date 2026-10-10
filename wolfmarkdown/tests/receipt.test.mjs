@@ -46,6 +46,12 @@ test("integrity coverage warns about uncovered shapes without failing", async ()
   assert.equal(result.integrityCoverage.checked, false);
 });
 
+test("coverage counts total occurrences per class, not distinct values", () => {
+  const coverage = integrityCoverage("Pay £500 twice: £500.\n");
+  assert.equal(coverage.classes.currency.count, 2);
+  assert.deepEqual(coverage.classes.currency.examples, ["£500"]);
+});
+
 test("three-part versions are not reported as unprotected two-part versions", () => {
   const coverage = integrityCoverage("Release 1.2.3 and v1.2.3-beta.1.\n");
   assert.equal(

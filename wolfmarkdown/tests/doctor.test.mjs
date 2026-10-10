@@ -311,6 +311,47 @@ test("doctor text Result is FAIL when discovery is missing but the exit follows 
   });
 });
 
+test("doctor checks the working directory project link", async () => {
+  await withHome(async (home) => {
+    const projectRoot = join(home, "project");
+    await mkdir(join(projectRoot, ".agents", "skills"), { recursive: true });
+    await symlink(skillRoot, join(projectRoot, ".agents", "skills", "wolfmarkdown"));
+    await mkdir(join(home, ".commandcode"));
+    const env = { ...process.env, WOLFMARKDOWN_HOME: home, HOME: home };
+    const ran = spawnSync(process.execPath, [join(skillRoot, "scripts", "doctor.mjs"), "--json"], {
+      encoding: "utf8",
+      cwd: projectRoot,
+      env,
+    });
+    assert.equal(ran.status, 0, ran.stderr);
+    const payload = JSON.parse(ran.stdout);
+    assert.equal(payload.discovery.checks.project, true);
+    const commandcode = payload.agents.find((agent) => agent.id === "commandcode");
+    assert.equal(commandcode.detected, true);
+    assert.equal(commandcode.discoveryReady, true);
+    assert.equal(commandcode.status, "Ready");
+  });
+});
+
+test("doctor without a project link keeps the project check neutral", async () => {
+  await withHome(async (home) => {
+    const plain = join(home, "plain");
+    await mkdir(plain, { recursive: true });
+    const ran = spawnSync(process.execPath, [join(skillRoot, "scripts", "doctor.mjs"), "--json"], {
+      encoding: "utf8",
+      cwd: plain,
+      env: { ...process.env, WOLFMARKDOWN_HOME: home, HOME: home },
+    });
+    const payload = JSON.parse(ran.stdout);
+    assert.equal(payload.discovery.checks.project, true);
+    assert.ok(
+      payload.discovery.errors.every((error) => !/project discovery/i.test(error)),
+      payload.discovery.errors.join("\n"),
+    );
+    assert.ok(payload.discovery.errors.some((error) => /shared agent skills/i.test(error)));
+  });
+});
+
 test("doctor --strict requires overall PASS including discovery", async () => {
   await withHome(async (home) => {
     const missing = spawnSync(process.execPath, [join(skillRoot, "scripts", "doctor.mjs"), "--strict"], {

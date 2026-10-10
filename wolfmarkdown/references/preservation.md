@@ -18,7 +18,7 @@ The extractor matches these classes only:
 - Three-part semantic versions, including `1.2.3`, `v1.2.3`, `1.2.3-beta.1`, and `v1.2.3+build.7`
 - Path-like strings starting `./`, `../`, `~/`, a POSIX absolute path with at least one directory, a relative file path with an extension such as `docs/config.md`, a multi-segment relative path such as `docs/api/tokens`, or a Windows drive-letter path such as `C:\Users\mark\notes.md`
 - Scoped environment forms that match the extractor: `$API_KEY` and `${API_KEY}`
-- Environment names and assignments backed by code spans, plus `API_KEY=` assignment shapes
+- Environment names backed by code spans, and assignment shapes such as `API_KEY=` where the trailing `=` is part of the protected token, so dropping it fails verification
 - ISO dates such as `2026-08-15` and numeric dates such as `15/08/2026`
 - Percentages such as `12%` and `12 %`
 - Currency amounts such as `$4.00`, `$1,000`, `£4.00`, and `€4.00`

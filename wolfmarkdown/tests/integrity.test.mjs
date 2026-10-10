@@ -27,6 +27,7 @@ test("extracts each protected token class from the technical fixture", async () 
     "API_KEY",
     "DATABASE_URL",
     "RPC_ENDPOINT",
+    "RPC_ENDPOINT=",
     "2026-08-15",
     "15/08/2026",
     "12%",
@@ -271,6 +272,23 @@ test("explicit link text and target count as two appearances", () => {
 test("bare autolinks still count a single appearance", () => {
   const index = extractTokenIndex("See https://example.com/a.\n");
   assert.equal(index.classes.url.get("https://example.com/a"), 1);
+});
+
+test("dropping the equals sign from a prose assignment fails verification", () => {
+  const result = compareTokenIndexes(
+    extractTokenIndex("Set RPC_ENDPOINT= for auth.\n"),
+    extractTokenIndex("Set RPC_ENDPOINT for auth.\n"),
+  );
+  assert.equal(result.ok, false);
+  assert.ok(result.missing.includes("RPC_ENDPOINT="));
+});
+
+test("unchanged prose assignments pass verification", () => {
+  const result = compareTokenIndexes(
+    extractTokenIndex("Set RPC_ENDPOINT= for auth.\n"),
+    extractTokenIndex("Set RPC_ENDPOINT= for auth.\n"),
+  );
+  assert.equal(result.ok, true);
 });
 
 test("identical values across prose and link nodes count actual occurrences", async () => {

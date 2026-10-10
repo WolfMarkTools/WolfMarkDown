@@ -120,7 +120,7 @@ function extractRegexClasses(index, text, inCode = false) {
   addAll(index, text, CURRENCY_RE, "currency", { code: inCode });
   addPaths(index, text, inCode);
   addAll(index, text, ENV_SCOPED_RE, "env", { pick: (match) => match[0], code: inCode });
-  addAll(index, text, ENV_ASSIGN_RE, "env", { pick: (match) => match[1], code: inCode });
+  addAll(index, text, ENV_ASSIGN_RE, "env", { pick: (match) => match[0], code: inCode });
   addAll(index, text, ENV_NAME_RE, "env", { code: inCode });
   addAll(index, text, CAMEL_IDENT_RE, "camelCase", { code: inCode });
   addAll(index, text, SNAKE_IDENT_RE, "snakeCase", { code: inCode });
@@ -148,7 +148,7 @@ function assignStrength(index) {
       if (ALWAYS_STRONG_CLASSES.has(name)) {
         index.strong.add(token);
       } else if (name === "env") {
-        if (token.startsWith("$") || index.codeTokens.has(token)) index.strong.add(token);
+        if (token.startsWith("$") || token.endsWith("=") || index.codeTokens.has(token)) index.strong.add(token);
       } else if (index.codeTokens.has(token)) {
         index.strong.add(token);
       }

@@ -223,7 +223,8 @@ export function compareTokenIndexes(before, after) {
     }
     for (const [token, afterCount] of afterMap) {
       if (!after.strong.has(token)) continue;
-      if (afterCount > (beforeMap.get(token) ?? 0)) {
+      const surplus = afterCount - (beforeMap.get(token) ?? 0);
+      for (let i = 0; i < surplus; i += 1) {
         if (!increasedByClass.has(name)) increasedByClass.set(name, []);
         increasedByClass.get(name).push(token);
       }

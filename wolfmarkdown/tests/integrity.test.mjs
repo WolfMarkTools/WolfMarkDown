@@ -183,6 +183,19 @@ test("shifting occurrences between existing values fails verification", async ()
   assert.ok(result.errors.some((error) => /changed: £500 → £50/.test(error)), result.errors.join("\n"));
 });
 
+test("each surplus occurrence pairs with a decreased occurrence of the same class", () => {
+  const result = compareTokenIndexes(
+    extractTokenIndex("£500 £500 £400 £400.\n"),
+    extractTokenIndex("£500 £400 £50 £50.\n"),
+  );
+  assert.equal(result.ok, false);
+  assert.deepEqual(
+    result.mutated.map((entry) => `${entry.token} → ${entry.changedTo}`),
+    ["£500 → £50", "£400 → £50"],
+  );
+  assert.deepEqual(result.decreased, []);
+});
+
 test("replacing a single protected value fails verification", async () => {
   const result = await verifyMarkdown("Pay £50.\n", { integrityFromText: "Pay £500.\n" });
   assert.equal(result.ok, false);

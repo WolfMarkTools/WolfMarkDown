@@ -138,17 +138,22 @@ async function ensureOwnedLink(destination, canonicalDir, platform) {
   return "created";
 }
 
-export async function installSkill({ home, canonicalDir, skipDeps = false, platform = process.platform }) {
+export async function installSkill({ home, canonicalDir, skipDeps = false, runtimeOnly = false, platform = process.platform }) {
   const destination = defaultDestination(home);
+  let dependenciesRepaired = false;
   if (!skipDeps && (await dependenciesNeedRepair(canonicalDir))) {
     installDependencies(canonicalDir, platform);
+    dependenciesRepaired = true;
+  }
+  if (runtimeOnly) {
+    return { destination, status: "runtime-only", statuses: {}, dependenciesRepaired };
   }
   const statuses = {};
   for (const target of discoveryTargets(home)) {
     statuses[target.id] = await ensureOwnedLink(target.destination, canonicalDir, platform);
   }
   const status = Object.values(statuses).every((value) => value === "unchanged") ? "unchanged" : "created";
-  return { destination, status, statuses };
+  return { destination, status, statuses, dependenciesRepaired };
 }
 
 export async function uninstallSkill({ home, canonicalDir }) {

@@ -6,18 +6,28 @@ import { checkInstall, installSkill, uninstallSkill } from "../lib/install-targe
 import { skillRoot } from "../lib/paths.mjs";
 
 async function main(argv) {
-  const parsed = parseFlags(argv, ["--check", "--uninstall", "--skip-deps"]);
+  const parsed = parseFlags(argv, ["--check", "--uninstall", "--skip-deps", "--runtime-only"]);
   if (parsed.help) {
     printHelp(
       "WolfMarkDown installer",
-      "Usage: node scripts/install.mjs [--check] [--uninstall] [--skip-deps]\n--skip-deps manages discovery links without running npm ci.",
+      "Usage: node scripts/install.mjs [--check] [--uninstall] [--skip-deps] [--runtime-only]\n--skip-deps manages discovery links without running npm ci.\n--runtime-only repairs dependencies without creating or changing discovery links.",
     );
     return 0;
   }
   if (parsed.positionals.length > 0) {
     throw new Error("Unexpected arguments.");
   }
+  if (parsed.flags["runtime-only"] && (parsed.flags.check || parsed.flags.uninstall || parsed.flags["skip-deps"])) {
+    throw new Error("--runtime-only cannot be combined with --check, --uninstall, or --skip-deps.");
+  }
   const home = process.env.WOLFMARKDOWN_HOME || process.env.HOME || homedir();
+  if (parsed.flags["runtime-only"]) {
+    const result = await installSkill({ home, canonicalDir: skillRoot, runtimeOnly: true });
+    process.stdout.write(
+      `runtime-only: dependencies ${result.dependenciesRepaired ? "repaired" : "unchanged"}; discovery links untouched\n`,
+    );
+    return 0;
+  }
   if (parsed.flags.check) {
     const result = await checkInstall({ home, canonicalDir: skillRoot });
     process.stdout.write(`shared: ${result.destination}\n`);

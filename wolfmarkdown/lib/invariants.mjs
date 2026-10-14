@@ -306,6 +306,7 @@ export function checkInvariants({ declaration, sourceText, candidateText }) {
     }
     const result = checkOrdinalPreservation(sourceText, candidateText, { runs: grounded });
     issues.push(...result.issues);
+    warnings.push(...result.warnings);
   }
 
   for (const heading of declaration.require.headings) {

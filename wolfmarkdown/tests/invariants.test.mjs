@@ -306,3 +306,34 @@ test("declared section invariants fail when the sequence left its context", () =
   assert.equal(result.ok, false);
   assert.ok(result.issues.some((issue) => /different ordered list/u.test(issue.message)));
 });
+
+test("ambiguity warnings from declared ordinal checks reach the result and receipt", async () => {
+  const source = ["# Doc", "", "## Rankings", "", "1. Alpha", "2. Bravo", "3. Charlie", "4. Delta", ""].join("\n");
+  const candidate = [
+    "# Doc",
+    "",
+    "## Rankings",
+    "",
+    "1. Alpha",
+    "2. Renamed One",
+    "3. Renamed Two",
+    "4. Renamed Three",
+    "",
+  ].join("\n");
+  const declaration = parseInvariants(
+    JSON.stringify({
+      version: 1,
+      sourceSha256: hashText(source),
+      preserve: { ordinalRuns: [{ id: "ranks", section: "Rankings", start: 1, end: 4 }] },
+      require: {},
+    }),
+  ).declaration;
+
+  const result = checkInvariants({ declaration, sourceText: source, candidateText: candidate });
+  assert.equal(result.ok, true, result.issues.map((issue) => issue.message).join("\n"));
+  assert.deepEqual(result.warnings.map((warning) => warning.code), ["ordinal-context-ambiguous"]);
+
+  const verified = await verifyMarkdown(candidate, { integrityFromText: source, invariants: declaration });
+  assert.ok(verified.warnings.some((warning) => warning.code === "ordinal-context-ambiguous"));
+});
+

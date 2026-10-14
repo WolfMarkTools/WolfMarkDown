@@ -137,3 +137,26 @@ test("multi-backtick code spans are masked by delimiter run, not by pairing", ()
   assert.ok(fixedLine.includes("[1] [2] live"), fixedLine);
 });
 
+test("multiline code spans are masked during detection and safe fixes", () => {
+  const doc = [
+    "# Doc",
+    "",
+    "Open `inline code",
+    "[1][2]",
+    "continues` here.",
+    "",
+    "## Sources",
+    "",
+    "[1] https://example.com/a",
+    "[2] https://example.com/b",
+    "[3] https://example.com/c",
+    "",
+  ].join("\n");
+
+  assert.equal(findAdjacentCitationPairs(doc).length, 0);
+
+  const fixed = separateAdjacentCitations(doc);
+  assert.equal(fixed.applied, 0);
+  assert.equal(fixed.text, doc);
+});
+

@@ -13,7 +13,7 @@
 // only in documents with a recognised citation ledger.
 import { lineFenceStates } from "./fences.mjs";
 import { createIssue } from "./issues.mjs";
-import { detectRecordRuns, maskInlineCode } from "./preservation.mjs";
+import { detectRecordRuns, maskInlineCodeSpans } from "./preservation.mjs";
 
 const ADJACENT = /\[(\d{1,3})\]\[(\d{1,3})\]/gu;
 const DEFINITION = /^ {0,3}\[([^\]]+)\]:/u;
@@ -31,6 +31,10 @@ function visibleLines(text) {
   return lines.map((line, index) => ({ line, index, skip: inside[index] || /^ {4,}/u.test(line) }));
 }
 
+function maskedLines(text) {
+  return maskInlineCodeSpans(text).split("\n");
+}
+
 export function referenceDefinitions(text) {
   const labels = new Set();
   for (const { line, skip } of visibleLines(text)) {
@@ -43,10 +47,10 @@ export function referenceDefinitions(text) {
 
 export function findAdjacentCitationPairs(text) {
   const pairs = [];
+  const masked = maskedLines(text);
   for (const { line, index, skip } of visibleLines(text)) {
     if (skip) continue;
-    const masked = maskInlineCode(line);
-    for (const match of masked.matchAll(ADJACENT)) {
+    for (const match of (masked[index] ?? "").matchAll(ADJACENT)) {
       if (isEscaped(line, match.index)) continue;
       pairs.push({
         line: index + 1,
@@ -70,10 +74,10 @@ export function ledgerLabels(text) {
 
 function numericMarkers(text) {
   const markers = [];
+  const masked = maskedLines(text);
   for (const { line, index, skip } of visibleLines(text)) {
     if (skip || RECORD_LINE.test(line)) continue;
-    const masked = maskInlineCode(line);
-    for (const match of masked.matchAll(MARKER)) {
+    for (const match of (masked[index] ?? "").matchAll(MARKER)) {
       if (isEscaped(line, match.index)) continue;
       markers.push({ line: index + 1, label: match[1] });
     }
@@ -116,12 +120,12 @@ export function separateAdjacentCitations(text) {
   const labels = ledgerLabels(text);
   if (labels.size === 0) return { text, applied: 0 };
   const definitions = referenceDefinitions(text);
+  const masked = maskedLines(text);
   const { inside } = lineFenceStates(text);
   let applied = 0;
   const output = text.split("\n").map((line, index) => {
     if (inside[index] || /^ {4,}/u.test(line)) return line;
-    const masked = maskInlineCode(line);
-    const matches = [...masked.matchAll(ADJACENT)].filter(
+    const matches = [...(masked[index] ?? "").matchAll(ADJACENT)].filter(
       (match) => !isEscaped(line, match.index) && !definitions.has(match[2]),
     );
     let result = line;

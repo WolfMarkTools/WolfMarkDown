@@ -352,6 +352,32 @@ export function maskInlineCode(line) {
   return chars.join("");
 }
 
+// Mask every GFM inline code span in a document, including spans that cross
+// line breaks, using the parsed span positions. Line breaks inside a span
+// are preserved so line and column offsets stay stable.
+export function maskInlineCodeSpans(text) {
+  let ranges = [];
+  try {
+    const { tree } = parseMarkdown(text);
+    visit(tree, "inlineCode", (node) => {
+      const start = node.position?.start?.offset ?? null;
+      const end = node.position?.end?.offset ?? null;
+      if (start != null && end != null && end > start) ranges.push([start, end]);
+    });
+  } catch {
+    const lines = text.split("\n");
+    return lines.map((line) => maskInlineCode(line)).join("\n");
+  }
+  if (ranges.length === 0) return text;
+  const chars = text.split("");
+  for (const [start, end] of ranges) {
+    for (let cursor = start; cursor < end; cursor += 1) {
+      if (chars[cursor] !== "\n") chars[cursor] = " ";
+    }
+  }
+  return chars.join("");
+}
+
 // Detect ledger-style record runs: three or more consecutive lines that
 // begin with a bracketed numeric label outside fenced code, indented code
 // and inline code. Each record keeps its label and the first token after it
@@ -396,10 +422,11 @@ export function detectRecordRuns(text) {
 
 function maskForRecordMatching(text) {
   const { lines, inside } = lineFenceStates(text);
+  const masked = maskInlineCodeSpans(text).split("\n");
   return lines
     .map((line, index) => {
       if (inside[index] || /^ {4,}/u.test(line)) return "";
-      return maskInlineCode(line);
+      return masked[index] ?? "";
     })
     .join("\n");
 }

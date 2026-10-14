@@ -16,6 +16,10 @@ Agents produce useful research, plans, and documentation — but they can also f
 
 It keeps semantic decisions with the agent and uses deterministic tooling to prove properties of the resulting Markdown artifact before it is kept or published. It is not a generic AI Markdown formatter or a factuality checker: WolfMarkDown does not fact-check claims.
 
+## Latest release
+
+[WolfMarkDown v1.0.3](https://github.com/WolfMarkTools/WolfMarkDown/releases/tag/v1.0.3) improves the reliability of Markdown cleanup, with stronger checks for accidentally renumbered rankings and collapsed source lists, safer citation repairs, and clearer verification reports. Routine dependency repairs also leave your agent's existing skill setup in place.
+
 ## Install
 
 Requires **Node.js 22 or newer**.

@@ -194,3 +194,16 @@ test("--check --safe-fixes fails when a write pass would change the input", asyn
   assert.ok((await readFile(file, "utf8")).includes("[1][2]"));
 });
 
+test("reference definitions with markdown label whitespace are normalised", async () => {
+  const padded = "Claim [6][26] continues.\n\n[ 26 ]: https://example.com/target\n";
+  assert.equal(checkCitations(padded).ok, true);
+  assert.equal(findAdjacentCitationPairs(padded).length, 1);
+
+  const source = await readFixture("synthetic-sources-ledger.md");
+  const genuine = source.replace(
+    "Alpha Model leads the group [1] [3].",
+    "Alpha cites [1][9].\n\n[ 9 ]: https://example.com/target",
+  );
+  assert.equal(separateAdjacentCitations(genuine).applied, 0);
+});
+

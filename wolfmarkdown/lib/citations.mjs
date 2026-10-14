@@ -20,6 +20,12 @@ const DEFINITION = /^ {0,3}\[([^\]]+)\]:/u;
 const MARKER = /\[(\d{1,3})\]/gu;
 const RECORD_LINE = /^ {0,3}(?:[-*+] )?\[\d{1,3}\]\s/u;
 
+// CommonMark normalises link labels: leading and trailing whitespace is
+// stripped, internal whitespace is collapsed, and matching is case-folded.
+function normaliseLabel(label) {
+  return label.trim().replace(/\s+/gu, " ").toLowerCase();
+}
+
 function isEscaped(line, index) {
   let slashes = 0;
   for (let cursor = index - 1; cursor >= 0 && line[cursor] === "\\"; cursor -= 1) slashes += 1;
@@ -40,7 +46,7 @@ export function referenceDefinitions(text) {
   for (const { line, skip } of visibleLines(text)) {
     if (skip) continue;
     const match = line.match(DEFINITION);
-    if (match) labels.add(match[1]);
+    if (match) labels.add(normaliseLabel(match[1]));
   }
   return labels;
 }
@@ -87,7 +93,9 @@ function numericMarkers(text) {
 
 export function checkCitations(text, { crossReference = false } = {}) {
   const definitions = referenceDefinitions(text);
-  const pairs = findAdjacentCitationPairs(text).filter((pair) => !definitions.has(pair.right));
+  const pairs = findAdjacentCitationPairs(text).filter(
+    (pair) => !definitions.has(normaliseLabel(pair.right)),
+  );
   const issues = pairs.map((pair) =>
     createIssue(
       "citations",
@@ -126,7 +134,7 @@ export function separateAdjacentCitations(text) {
   const output = text.split("\n").map((line, index) => {
     if (inside[index] || /^ {4,}/u.test(line)) return line;
     const matches = [...(masked[index] ?? "").matchAll(ADJACENT)].filter(
-      (match) => !isEscaped(line, match.index) && !definitions.has(match[2]),
+      (match) => !isEscaped(line, match.index) && !definitions.has(normaliseLabel(match[2])),
     );
     let result = line;
     for (const match of matches.reverse()) {

@@ -371,3 +371,25 @@ test("declared ordinal invariants only enforce their declared range", () => {
   assert.equal(strict.ok, false);
 });
 
+test("declared record runs are compared by identity, not only count", () => {
+  const source = "# Ledger\n\n## Sources\n\n[1] alpha-one\n[2] bravo-two\n[3] charlie-three\n";
+  const declaration = parseInvariants(
+    JSON.stringify({
+      version: 1,
+      sourceSha256: hashText(source),
+      preserve: { recordRuns: [{ id: "sources", section: "Sources", count: 3 }] },
+      require: {},
+    }),
+  ).declaration;
+
+  // Same record count, different records: the declared run is not preserved.
+  const replaced = "# Ledger\n\n## Sources\n\n[1] xray-one\n[2] yankee-two\n[3] zulu-three\n";
+  const violated = checkInvariants({ declaration, sourceText: source, candidateText: replaced });
+  assert.equal(violated.ok, false);
+  assert.ok(violated.issues.length > 0);
+
+  // The intact candidate still passes.
+  const intact = checkInvariants({ declaration, sourceText: source, candidateText: source });
+  assert.equal(intact.ok, true, intact.issues.map((issue) => issue.message).join("\n"));
+});
+

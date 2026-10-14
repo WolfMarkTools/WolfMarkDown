@@ -24,6 +24,7 @@ import { createIssue } from "./issues.mjs";
 import { parseMarkdown } from "./parse.mjs";
 import {
   checkOrdinalPreservation,
+  checkRecordPreservation,
   detectRecordRuns,
   extractOrdinalRuns,
   normaliseHeading,
@@ -187,11 +188,16 @@ function findSection(text, sectionHeading) {
   return { startOffset, endOffset };
 }
 
-function sectionRecordCount(text, sectionHeading) {
+function sectionRecordRuns(text, sectionHeading) {
   const section = findSection(text, sectionHeading);
   if (section == null) return null;
   const slice = text.slice(section.startOffset, section.endOffset);
-  return detectRecordRuns(slice).reduce((sum, run) => sum + run.count, 0);
+  return detectRecordRuns(slice);
+}
+
+function sectionRecordCount(text, sectionHeading) {
+  const runs = sectionRecordRuns(text, sectionHeading);
+  return runs == null ? null : runs.reduce((sum, run) => sum + run.count, 0);
 }
 
 function isContiguousSubsequence(values, expected) {
@@ -258,8 +264,8 @@ export function checkInvariants({ declaration, sourceText, candidateText }) {
 
   for (const requirement of declaration.preserve.recordRuns) {
     evidence.preserved += 1;
-    const sourceCount = sectionRecordCount(sourceText, requirement.section);
-    if (sourceCount == null) {
+    const sourceRuns = sectionRecordRuns(sourceText, requirement.section);
+    if (sourceRuns == null) {
       issues.push(
         createIssue(
           "invariants",
@@ -268,6 +274,7 @@ export function checkInvariants({ declaration, sourceText, candidateText }) {
       );
       continue;
     }
+    const sourceCount = sourceRuns.reduce((sum, run) => sum + run.count, 0);
     if (sourceCount !== requirement.count) {
       issues.push(
         createIssue(
@@ -288,6 +295,10 @@ export function checkInvariants({ declaration, sourceText, candidateText }) {
         ),
       );
     }
+    // Records are compared by identity, order and line boundaries — not only
+    // by the candidate's record count.
+    const boundary = checkRecordPreservation(sourceText, candidateText, { runs: sourceRuns });
+    issues.push(...boundary.issues);
   }
 
   for (const requirement of declaration.preserve.ordinalRuns) {

@@ -13,6 +13,79 @@ import { readFixture } from "./helpers.mjs";
 
 const scriptPath = fileURLToPath(new URL("../scripts/verify-markdown.mjs", import.meta.url));
 
+test("declared record identities must remain inside their declared section", async () => {
+  const source = "# Doc\n\n## Sources\n\n[1] alpha\n[2] beta\n[3] gamma\n";
+  const declaration = parseInvariants(JSON.stringify({
+    version: 1, sourceSha256: hashText(source),
+    preserve: { recordRuns: [{ section: "Sources", count: 3 }] },
+  })).declaration;
+  const moved = "# Doc\n\n## Sources\n\n[1] xray\n[2] yankee\n[3] zulu\n\n## Appendix\n\n[1] alpha\n[2] beta\n[3] gamma\n";
+  const result = await verifyMarkdown(await formatMarkdown(moved.replace(/^(\[\d+\] .*)$/gmu, "- $1")), {
+    integrityFromText: source, invariants: declaration,
+  });
+  assert.equal(result.checks.invariants, false);
+  assert.ok(result.issues.some((issue) => issue.check === "records"));
+  assert.equal(checkInvariants({ declaration, sourceText: source, candidateText: source }).ok, true);
+});
+
+test("declared ordinal bounds reject unsafe integers", () => {
+  const parsed = parseInvariants(JSON.stringify({
+    version: 1, sourceSha256: "a".repeat(64),
+    preserve: { ordinalRuns: [{ section: "Ranking", start: 1e20, end: 1e20 }] },
+  }));
+  assert.equal(parsed.ok, false);
+});
+
+test("declared records may survive as separated paragraphs without forming a new run", () => {
+  const source = "# Doc\n\n## Sources\n\n[1] alpha\n[2] beta\n[3] gamma\n";
+  const declaration = parseInvariants(JSON.stringify({
+    version: 1, sourceSha256: hashText(source),
+    preserve: { recordRuns: [{ section: "Sources", count: 3 }] },
+  })).declaration;
+  const candidate = source.replaceAll("\n[", "\n\n[");
+  assert.equal(checkInvariants({ declaration, sourceText: source, candidateText: candidate }).ok, true);
+});
+
+test("declared sections with repeated heading names are rejected as ambiguous", () => {
+  for (const [kind, section, content, requirement] of [
+    ["recordRuns", "Sources", "[1] alpha\n[2] beta\n[3] gamma", { count: 3 }],
+    ["ordinalRuns", "Ranking", "1. Alpha\n2. Bravo", { start: 1, end: 2 }],
+  ]) {
+    const unique = `# Doc\n\n## ${section}\n\n${content}\n`;
+    const duplicate = unique + `\n## ${section}\n\n${content}\n`;
+    for (const [sourceText, candidateText] of [[unique, duplicate], [duplicate, unique]]) {
+      const declaration = parseInvariants(JSON.stringify({
+        version: 1, sourceSha256: hashText(sourceText),
+        preserve: { [kind]: [{ section, ...requirement }] },
+      })).declaration;
+      const result = checkInvariants({ declaration, sourceText, candidateText });
+      assert.equal(result.ok, false, kind);
+      assert.ok(result.issues.some((issue) => /ambiguous/iu.test(issue.message)), kind);
+    }
+  }
+});
+
+test("a huge declared ordinal range is rejected promptly without enumerating its values", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-invariants-"));
+  const source = "# Doc\n\n## Ranking\n\n1. Alpha\n2. Bravo\n";
+  const file = join(dir, "source.md");
+  const invariantsFile = join(dir, "invariants.json");
+  await writeFile(file, source);
+  await writeFile(invariantsFile, JSON.stringify({
+    version: 1, sourceSha256: hashText(source),
+    preserve: { ordinalRuns: [{ section: "Ranking", start: 1, end: Number.MAX_SAFE_INTEGER }] },
+  }));
+  assert.throws(() => execFileSync(process.execPath, [
+    scriptPath, file, "--integrity-from", file, "--invariants", invariantsFile, "--json",
+  ], { encoding: "utf8", timeout: 5000 }), (error) => {
+    assert.equal(error.status, 1, error.message);
+    const receipt = JSON.parse(error.stdout);
+    assert.equal(receipt.checks.invariants, "fail");
+    assert.ok(receipt.issues.some((issue) => /not source-grounded/u.test(issue.message)));
+    return true;
+  });
+});
+
 async function ledgerDeclaration(overrides = {}) {
   const source = await readFixture("synthetic-sources-ledger.md");
   return {
@@ -211,7 +284,7 @@ test("preserved headings must survive; required headings are candidate-only", as
   assert.ok(unsatisfied.issues.some((issue) => /Required heading is missing/u.test(issue.message)));
 });
 
-test("a collapsed ledger fails a declared record count", async () => {
+test("a collapsed ledger fails declared record preservation", async () => {
   const source = await readFixture("synthetic-sources-ledger.md");
   const collapsed = [
     "# Synthetic ledger fixture",
@@ -227,7 +300,7 @@ test("a collapsed ledger fails a declared record count", async () => {
   ).declaration;
   const result = await verifyMarkdown(collapsed, { integrityFromText: source, invariants: parsed });
   assert.equal(result.checks.invariants, false);
-  assert.ok(result.issues.some((issue) => /Declared records are not preserved/u.test(issue.message)));
+  assert.ok(result.issues.some((issue) => issue.check === "records" && /own line/u.test(issue.message)));
 });
 
 test("CLI: --invariants requires a snapshot and records evidence in the receipt", async () => {

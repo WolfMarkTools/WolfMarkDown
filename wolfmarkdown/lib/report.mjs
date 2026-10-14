@@ -85,7 +85,8 @@ export function formatErrors(errors, issues) {
 }
 
 function checkState(passed) {
-  if (passed == null) return { text: "Skip", json: "skip" };
+  if (passed == null || passed === "skip") return { text: "Skip", json: "skip" };
+  if (passed === "fail") return { text: "Fail", json: "fail" };
   if (passed) return { text: "Pass", json: "pass" };
   return { text: "Fail", json: "fail" };
 }

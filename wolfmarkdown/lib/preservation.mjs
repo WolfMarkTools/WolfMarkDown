@@ -17,7 +17,6 @@
 // Checked only when structural preservation is requested; the untouched
 // source snapshot is the baseline.
 import { visit } from "unist-util-visit";
-import { lineFenceStates } from "./fences.mjs";
 import { createIssue } from "./issues.mjs";
 import { parseMarkdown } from "./parse.mjs";
 import { evaluateRecordBoundaries } from "./semantic-eval.mjs";
@@ -92,7 +91,7 @@ export function extractOrdinalRuns(text) {
   visit(tree, "list", (node) => {
     if (!node.ordered || !node.children || node.children.length < 2) return;
     const start =
-      typeof node.start === "number" && Number.isFinite(node.start) && node.start > 0 ? node.start : 1;
+      typeof node.start === "number" && Number.isFinite(node.start) && node.start >= 0 ? node.start : 1;
     const items = [];
     node.children.forEach((item, index) => {
       const anchor = itemAnchor(plainText(item));
@@ -308,73 +307,17 @@ export function checkOrdinalPreservation(snapshotText, candidateText, options = 
 
 const RECORD_PREFIX = /^ {0,3}(?:[-*+] )?\[(\d{1,3})\]\s+(\S.*)$/u;
 
-// GFM inline code spans are delimited by equal-length backtick runs; they
-// must be matched by run length, not by pairing individual characters.
-// Returns [start, end) ranges covering the delimiters and their content.
-function codeSpans(line) {
-  const spans = [];
-  let index = 0;
-  while (index < line.length) {
-    if (line[index] !== "`") {
-      index += 1;
-      continue;
-    }
-    let openEnd = index;
-    while (openEnd < line.length && line[openEnd] === "`") openEnd += 1;
-    const runLength = openEnd - index;
-    let cursor = openEnd;
-    let spanEnd = -1;
-    while (cursor < line.length) {
-      if (line[cursor] !== "`") {
-        cursor += 1;
-        continue;
-      }
-      let closeEnd = cursor;
-      while (closeEnd < line.length && line[closeEnd] === "`") closeEnd += 1;
-      if (closeEnd - cursor === runLength) {
-        spanEnd = closeEnd;
-        break;
-      }
-      cursor = closeEnd;
-    }
-    if (spanEnd === -1) {
-      index = openEnd;
-      continue;
-    }
-    spans.push([index, spanEnd]);
-    index = spanEnd;
-  }
-  return spans;
-}
-
-function insideAnySpan(offset, spans) {
-  return spans.some(([start, end]) => offset >= start && offset < end);
-}
-
-export function maskInlineCode(line) {
-  const chars = line.split("");
-  for (const [start, end] of codeSpans(line)) {
-    for (let cursor = start; cursor < end; cursor += 1) chars[cursor] = " ";
-  }
-  return chars.join("");
-}
-
-// Mask every GFM inline code span in a document, including spans that cross
-// line breaks, using the parsed span positions. Line breaks inside a span
-// are preserved so line and column offsets stay stable.
-export function maskInlineCodeSpans(text) {
-  let ranges = [];
-  try {
-    const { tree } = parseMarkdown(text);
-    visit(tree, "inlineCode", (node) => {
-      const start = node.position?.start?.offset ?? null;
-      const end = node.position?.end?.offset ?? null;
-      if (start != null && end != null && end > start) ranges.push([start, end]);
-    });
-  } catch {
-    const lines = text.split("\n");
-    return lines.map((line) => maskInlineCode(line)).join("\n");
-  }
+// Mask parsed Markdown nodes across the complete document. Keep line breaks
+// and UTF-16 offsets stable for diagnostics and lexical repairs. Parsing
+// errors propagate; an incomplete lexical fallback must not enable a fix.
+export function maskMarkdownNodes(text, types) {
+  const ranges = [];
+  const { tree } = parseMarkdown(text);
+  visit(tree, types, (node) => {
+    const start = node.position?.start?.offset ?? null;
+    const end = node.position?.end?.offset ?? null;
+    if (start != null && end != null && end > start) ranges.push([start, end]);
+  });
   if (ranges.length === 0) return text;
   const chars = text.split("");
   for (const [start, end] of ranges) {
@@ -385,30 +328,12 @@ export function maskInlineCodeSpans(text) {
   return chars.join("");
 }
 
-// Line numbers (1-based) covered by fenced or indented code blocks anywhere
-// in the document, including blocks inside blockquotes and list items.
-export function codeBlockLines(text) {
-  const lines = new Set();
-  try {
-    const { tree } = parseMarkdown(text);
-    visit(tree, "code", (node) => {
-      const start = node.position?.start?.line ?? null;
-      const end = node.position?.end?.line ?? null;
-      if (start == null || end == null) return;
-      for (let line = start; line <= end; line += 1) lines.add(line);
-    });
-  } catch {
-    return lines;
-  }
-  return lines;
-}
-
 // Detect ledger-style record runs: three or more consecutive lines that
 // begin with a bracketed numeric label outside fenced code, indented code
 // and inline code. Each record keeps its label and the first token after it
 // (usually the URL) as its identity.
 export function detectRecordRuns(text) {
-  const { lines, inside } = lineFenceStates(text);
+  const lines = maskForRecordMatching(text).split("\n");
   const runs = [];
   let current = [];
   const flush = () => {
@@ -423,17 +348,8 @@ export function detectRecordRuns(text) {
     current = [];
   };
   lines.forEach((line, index) => {
-    if (inside[index] || /^ {4,}/u.test(line)) {
-      flush();
-      return;
-    }
     const match = line.match(RECORD_PREFIX);
     if (!match) {
-      flush();
-      return;
-    }
-    const labelOffset = match[0].indexOf("[");
-    if (insideAnySpan(labelOffset, codeSpans(line))) {
       flush();
       return;
     }
@@ -446,15 +362,7 @@ export function detectRecordRuns(text) {
 }
 
 function maskForRecordMatching(text) {
-  const { lines, inside } = lineFenceStates(text);
-  const codeLines = codeBlockLines(text);
-  const masked = maskInlineCodeSpans(text).split("\n");
-  return lines
-    .map((line, index) => {
-      if (inside[index] || codeLines.has(index + 1) || /^ {4,}/u.test(line)) return "";
-      return masked[index] ?? "";
-    })
-    .join("\n");
+  return maskMarkdownNodes(text, ["code", "inlineCode", "definition", "html", "yaml"]);
 }
 
 // Each source record must survive on its own line, in order, with its label
@@ -469,7 +377,9 @@ export function checkRecordPreservation(snapshotText, candidateText, options = {
   for (const run of runs) {
     for (const record of run.records) records.push(record.tokens);
   }
-  const boundary = evaluateRecordBoundaries(maskForRecordMatching(candidateText), records);
+  const boundary = evaluateRecordBoundaries(maskForRecordMatching(candidateText), records, {
+    requirePrefix: true,
+  });
   const issues = [];
   for (const entry of boundary.results) {
     if (!entry.error) continue;

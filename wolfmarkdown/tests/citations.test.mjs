@@ -7,11 +7,53 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { checkCitations, findAdjacentCitationPairs, separateAdjacentCitations } from "../lib/citations.mjs";
 import { formatMarkdown } from "../lib/format.mjs";
-import { maskInlineCode } from "../lib/preservation.mjs";
+import { maskMarkdownNodes } from "../lib/preservation.mjs";
 import { verifyMarkdown } from "../lib/validate.mjs";
 import { readFixture } from "./helpers.mjs";
 
 const formatScript = fileURLToPath(new URL("../scripts/format-markdown.mjs", import.meta.url));
+
+const maskCode = (text) => maskMarkdownNodes(text, ["inlineCode"]);
+
+const ledger = "\n\n## Sources\n\n[1] alpha\n[2] beta\n[3] gamma\n";
+
+test("safe fixes separate every citation boundary in one pass and are idempotent", async () => {
+  for (const chain of ["[1][2][3]", "[1][2][3][4]", "[10][20][30][40][50]"]) {
+    const input = `# Doc\n\nClaim ${chain}.${ledger}`;
+    const result = separateAdjacentCitations(input);
+    assert.equal(result.applied, chain.match(/\[/gu).length - 1);
+    assert.ok(result.text.includes(chain.replaceAll("][", "] [")));
+    assert.equal(checkCitations(result.text).ok, true);
+    assert.equal((await verifyMarkdown(await formatMarkdown(result.text))).ok, true);
+    assert.deepEqual(separateAdjacentCitations(result.text), { text: result.text, applied: 0 });
+  }
+});
+
+test("safe fixes preserve parsed reference links, images and inline links in chains", () => {
+  for (const body of [
+    "Claim [1][2][3].\n\n[2]: /target",
+    "Claim [1][2][3].\n\n[3]: /target",
+    "Claim [1][2].\n\n> [2]: /target",
+    "Claim [1][2](/target).",
+    "Claim ![1][2].\n\n[2]: /target",
+  ]) {
+    const input = `# Doc\n\n${body}${ledger}`;
+    assert.deepEqual(separateAdjacentCitations(input), { text: input, applied: 0 }, body);
+    assert.equal(checkCitations(input).ok, true, body);
+  }
+});
+
+test("reference-shaped text in code does not hide a live citation issue", () => {
+  const input = `# Doc\n\nOpen \`code\n[2]: /target\nend\`\n\nClaim [1][2].${ledger}`;
+  assert.equal(checkCitations(input).ok, false);
+  assert.equal(separateAdjacentCitations(input).applied, 1);
+});
+
+test("a multiline code ledger cannot enable safe fixes or cross-reference warnings", () => {
+  const input = "# Doc\n\nOpen `code\n[1] alpha\n[2] beta\n[3] gamma\nend`\n\nClaim [1][9].\n";
+  assert.deepEqual(separateAdjacentCitations(input), { text: input, applied: 0 });
+  assert.deepEqual(checkCitations(input, { crossReference: true }).warnings, []);
+});
 
 test("adjacent numeric citation pairs are detected only in live text", () => {
   assert.equal(findAdjacentCitationPairs("Claim [6][26] continues.\n").length, 1);
@@ -32,7 +74,7 @@ test("checkCitations fails undefined pairs with a citation-specific remediation"
 test("defined right labels are genuine reference links and are not flagged", () => {
   const text = "Claim [6][26] continues.\n\n[26]: https://example.com/target\n";
   assert.equal(checkCitations(text).ok, true);
-  assert.equal(findAdjacentCitationPairs(text).length, 1);
+  assert.equal(findAdjacentCitationPairs(text).length, 0);
 });
 
 test("verifyMarkdown reports citations and deduplicates the MD052 finding", async () => {
@@ -101,15 +143,15 @@ test("format --safe-fixes applies the repair; plain format leaves the pair", asy
 });
 
 test("multi-backtick code spans are masked by delimiter run, not by pairing", () => {
-  const singleTick = maskInlineCode("See `[1][2]` span.");
+  const singleTick = maskCode("See `[1][2]` span.");
   assert.ok(!singleTick.includes("[1][2]") && !singleTick.includes("`"), JSON.stringify(singleTick));
   assert.equal(singleTick.length, "See `[1][2]` span.".length);
 
-  const doubleTick = maskInlineCode("See ``[1][2]`` span.");
+  const doubleTick = maskCode("See ``[1][2]`` span.");
   assert.ok(!doubleTick.includes("[1][2]") && !doubleTick.includes("`"), JSON.stringify(doubleTick));
   assert.equal(doubleTick.length, "See ``[1][2]`` span.".length);
 
-  const fourTick = maskInlineCode("See ````[1][2]```` span.");
+  const fourTick = maskCode("See ````[1][2]```` span.");
   assert.ok(!fourTick.includes("[1][2]") && !fourTick.includes("`"), JSON.stringify(fourTick));
   assert.equal(fourTick.length, "See ````[1][2]```` span.".length);
 
@@ -197,7 +239,7 @@ test("--check --safe-fixes fails when a write pass would change the input", asyn
 test("reference definitions with markdown label whitespace are normalised", async () => {
   const padded = "Claim [6][26] continues.\n\n[ 26 ]: https://example.com/target\n";
   assert.equal(checkCitations(padded).ok, true);
-  assert.equal(findAdjacentCitationPairs(padded).length, 1);
+  assert.equal(findAdjacentCitationPairs(padded).length, 0);
 
   const source = await readFixture("synthetic-sources-ledger.md");
   const genuine = source.replace(

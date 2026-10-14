@@ -13,6 +13,29 @@ const ledgerLines = [
   "[4] https://example.com/four",
 ];
 
+test("ledger detection excludes multiline code and container code while retaining live line numbers", () => {
+  for (const protectedText of [
+    "Open `code\n[1] alpha\n[2] beta\n[3] gamma\nend`",
+    "- ```text\n  [1] alpha\n  [2] beta\n  [3] gamma\n  ```",
+    "- paragraph\n\n\t[1] alpha\n\t[2] beta\n\t[3] gamma",
+  ]) {
+    assert.deepEqual(detectRecordRuns(protectedText), [], protectedText);
+    const input = `# Doc\n\n${protectedText}\n\n${ledgerLines.join("\n")}\n`;
+    const runs = detectRecordRuns(input);
+    assert.equal(runs.length, 1);
+    assert.equal(runs[0].count, 4);
+    assert.equal(runs[0].startLine, input.split("\n").indexOf(ledgerLines[0]) + 1);
+    assert.equal(checkRecordPreservation(protectedText, "# Doc\n").ok, true);
+  }
+});
+
+test("records require the source label and value together at the start of their own line", () => {
+  const source = "[1] alpha\n[2] beta\n[3] gamma\n";
+  const swapped = "[2] alpha [1]\n[1] beta [2]\n[3] gamma\n";
+  assert.equal(checkRecordPreservation(source, swapped).ok, false);
+  assert.equal(checkRecordPreservation(source, source).ok, true);
+});
+
 function collapsedCandidate() {
   return [
     "# Synthetic ledger fixture",

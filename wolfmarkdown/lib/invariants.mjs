@@ -17,8 +17,9 @@
 //
 // "preserve" requirements must exist in the source snapshot and survive in
 // the candidate; "require" requirements are candidate-only (for example a
-// heading added by an authorised repair). Record counts are source-grounded
-// here; per-record line boundaries are covered by the records check.
+// heading added by an authorised repair). A section selector must identify
+// one heading in each document. Record counts are source-grounded here;
+// candidate records are matched by identity within that section.
 import { visit } from "unist-util-visit";
 import { createIssue } from "./issues.mjs";
 import { parseMarkdown } from "./parse.mjs";
@@ -113,11 +114,11 @@ export function parseInvariants(text) {
           if (typeof entry.section !== "string" || entry.section.trim() === "") {
             errors.push(`preserve.ordinalRuns[${index}].section must be a non-empty heading text.`);
           }
-          if (!Number.isInteger(entry.start) || entry.start < 1) {
-            errors.push(`preserve.ordinalRuns[${index}].start must be a positive integer.`);
+          if (!Number.isSafeInteger(entry.start) || entry.start < 1) {
+            errors.push(`preserve.ordinalRuns[${index}].start must be a positive safe integer.`);
           }
-          if (!Number.isInteger(entry.end) || !Number.isInteger(entry.start) || entry.end < entry.start) {
-            errors.push(`preserve.ordinalRuns[${index}].end must be an integer not less than start.`);
+          if (!Number.isSafeInteger(entry.end) || !Number.isSafeInteger(entry.start) || entry.end < entry.start) {
+            errors.push(`preserve.ordinalRuns[${index}].end must be a safe integer not less than start.`);
           }
           if (entry.id != null && typeof entry.id !== "string") {
             errors.push(`preserve.ordinalRuns[${index}].id must be a string when present.`);
@@ -174,6 +175,9 @@ function findSection(text, sectionHeading) {
     });
   });
   const wanted = normaliseHeading(sectionHeading);
+  if (headings.filter((heading) => heading.normalised === wanted).length > 1) {
+    return { ambiguous: true };
+  }
   const index = headings.findIndex((heading) => heading.normalised === wanted);
   if (index === -1) return null;
   const target = headings[index];
@@ -188,29 +192,15 @@ function findSection(text, sectionHeading) {
   return { startOffset, endOffset };
 }
 
-function sectionRecordRuns(text, sectionHeading) {
-  const section = findSection(text, sectionHeading);
-  if (section == null) return null;
-  const slice = text.slice(section.startOffset, section.endOffset);
-  return detectRecordRuns(slice);
-}
-
-function sectionRecordCount(text, sectionHeading) {
-  const runs = sectionRecordRuns(text, sectionHeading);
-  return runs == null ? null : runs.reduce((sum, run) => sum + run.count, 0);
-}
-
-function isContiguousSubsequence(values, expected) {
-  if (expected.length === 0) return true;
-  for (let start = 0; start + expected.length <= values.length; start += 1) {
-    let match = true;
-    for (let offset = 0; offset < expected.length; offset += 1) {
-      if (values[start + offset] !== expected[offset]) {
-        match = false;
-        break;
-      }
+function checkSectionAmbiguity(sourceText, candidateText, section, issues) {
+  for (const [label, text] of [["source snapshot", sourceText], ["candidate", candidateText]]) {
+    if (findSection(text, section)?.ambiguous) {
+      issues.push(createIssue(
+        "invariants",
+        `Declared section "${section}" is ambiguous in the ${label}: more than one heading matches. Use a unique heading before declaring section-specific preservation.`,
+      ));
+      return true;
     }
-    if (match) return true;
   }
   return false;
 }
@@ -264,8 +254,9 @@ export function checkInvariants({ declaration, sourceText, candidateText }) {
 
   for (const requirement of declaration.preserve.recordRuns) {
     evidence.preserved += 1;
-    const sourceRuns = sectionRecordRuns(sourceText, requirement.section);
-    if (sourceRuns == null) {
+    if (checkSectionAmbiguity(sourceText, candidateText, requirement.section, issues)) continue;
+    const sourceSection = findSection(sourceText, requirement.section);
+    if (sourceSection == null) {
       issues.push(
         createIssue(
           "invariants",
@@ -274,6 +265,7 @@ export function checkInvariants({ declaration, sourceText, candidateText }) {
       );
       continue;
     }
+    const sourceRuns = detectRecordRuns(sourceText.slice(sourceSection.startOffset, sourceSection.endOffset));
     const sourceCount = sourceRuns.reduce((sum, run) => sum + run.count, 0);
     if (sourceCount !== requirement.count) {
       issues.push(
@@ -284,37 +276,30 @@ export function checkInvariants({ declaration, sourceText, candidateText }) {
       );
       continue;
     }
-    const candidateCount = sectionRecordCount(candidateText, requirement.section);
-    if (candidateCount == null) {
+    const candidateSection = findSection(candidateText, requirement.section);
+    if (candidateSection == null) {
       issues.push(createIssue("invariants", `Declared section is missing from the candidate: "${requirement.section}".`));
-    } else if (candidateCount < requirement.count) {
-      issues.push(
-        createIssue(
-          "invariants",
-          `Declared records are not preserved in "${requirement.section}": expected at least ${requirement.count} records on their own lines, found ${candidateCount}.`,
-        ),
-      );
+      continue;
     }
     // Records are compared by identity, order and line boundaries — not only
     // by the candidate's record count.
-    const boundary = checkRecordPreservation(sourceText, candidateText, { runs: sourceRuns });
-    issues.push(...boundary.issues);
+    const sectionText = candidateText.slice(candidateSection.startOffset, candidateSection.endOffset);
+    const boundary = checkRecordPreservation(sourceText, sectionText, { runs: sourceRuns });
+    const lineOffset = candidateText.slice(0, candidateSection.startOffset).split("\n").length - 1;
+    issues.push(...boundary.issues.map((issue) => ({
+      ...issue, line: issue.line == null ? null : issue.line + lineOffset,
+    })));
   }
 
   for (const requirement of declaration.preserve.ordinalRuns) {
     evidence.preserved += 1;
+    if (checkSectionAmbiguity(sourceText, candidateText, requirement.section, issues)) continue;
     const wanted = normaliseHeading(requirement.section);
     const sourceRuns = extractOrdinalRuns(sourceText).filter((run) =>
       run.context.some((entry) => entry.normalised === wanted),
     );
-    const expected = [];
-    for (let value = requirement.start; value <= requirement.end; value += 1) expected.push(value);
     const grounded = sourceRuns
-      .filter((run) => {
-        const values = [];
-        for (let index = 0; index < run.count; index += 1) values.push(run.start + index);
-        return isContiguousSubsequence(values, expected);
-      })
+      .filter((run) => run.start <= requirement.start && run.start + run.count - 1 >= requirement.end)
       .map((run) => trimRunToRange(run, requirement.start, requirement.end))
       .filter((run) => run.items.length > 0);
     if (grounded.length === 0) {

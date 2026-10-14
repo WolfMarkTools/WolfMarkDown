@@ -114,9 +114,12 @@ test("SKILL.md satisfies the WolfMarkDown contract", async () => {
 
 test("plugin, package, and skill versions match", async () => {
   const pkg = JSON.parse(await readFile(join(skillRoot, "package.json"), "utf8"));
+  const lock = JSON.parse(await readFile(join(skillRoot, "package-lock.json"), "utf8"));
   const plugin = JSON.parse(await readFile(join(skillRoot, "..", "plugin.json"), "utf8"));
   const skill = await readFile(join(skillRoot, "SKILL.md"), "utf8");
   const skillVersion = skill.match(/^---\n[\s\S]*?^ {2}version:\s*"([^"]+)"/mu)?.[1];
+  assert.equal(lock.version, pkg.version);
+  assert.equal(lock.packages[""].version, pkg.version);
   assert.equal(plugin.version, pkg.version);
   assert.equal(skillVersion, pkg.version);
 });

@@ -11,20 +11,13 @@
 // inline code, escaped brackets, reference definitions and genuine
 // reference links (right label defined) are never modified. It applies
 // only in documents with a recognised citation ledger.
-import { lineFenceStates } from "./fences.mjs";
 import { createIssue } from "./issues.mjs";
-import { codeBlockLines, detectRecordRuns, maskInlineCodeSpans } from "./preservation.mjs";
+import { detectRecordRuns, maskMarkdownNodes } from "./preservation.mjs";
 
-const ADJACENT = /\[(\d{1,3})\]\[(\d{1,3})\]/gu;
-const DEFINITION = /^ {0,3}\[([^\]]+)\]:/u;
+// Consume only the left marker so every boundary in a chain is visible.
+const ADJACENT = /\[(\d{1,3})\](?=\[(\d{1,3})\])/gu;
 const MARKER = /\[(\d{1,3})\]/gu;
 const RECORD_LINE = /^ {0,3}(?:[-*+] )?\[\d{1,3}\]\s/u;
-
-// CommonMark normalises link labels: leading and trailing whitespace is
-// stripped, internal whitespace is collapsed, and matching is case-folded.
-function normaliseLabel(label) {
-  return label.trim().replace(/\s+/gu, " ").toLowerCase();
-}
 
 function isEscaped(line, index) {
   let slashes = 0;
@@ -32,43 +25,27 @@ function isEscaped(line, index) {
   return slashes % 2 === 1;
 }
 
-function visibleLines(text) {
-  const { lines, inside } = lineFenceStates(text);
-  const codeLines = codeBlockLines(text);
-  return lines.map((line, index) => ({
-    line,
-    index,
-    skip: inside[index] || codeLines.has(index + 1) || /^ {4,}/u.test(line),
-  }));
-}
-
 function maskedLines(text) {
-  return maskInlineCodeSpans(text).split("\n");
-}
-
-export function referenceDefinitions(text) {
-  const labels = new Set();
-  for (const { line, skip } of visibleLines(text)) {
-    if (skip) continue;
-    const match = line.match(DEFINITION);
-    if (match) labels.add(normaliseLabel(match[1]));
-  }
-  return labels;
+  // Protect complete parsed links, not merely their defined right labels:
+  // an overlapping pair can otherwise start or end inside a genuine link.
+  return maskMarkdownNodes(text, [
+    "code", "inlineCode", "definition", "link", "linkReference",
+    "image", "imageReference", "html", "yaml",
+  ]).split("\n");
 }
 
 export function findAdjacentCitationPairs(text) {
   const pairs = [];
   const masked = maskedLines(text);
-  for (const { line, index, skip } of visibleLines(text)) {
-    if (skip) continue;
-    for (const match of (masked[index] ?? "").matchAll(ADJACENT)) {
+  for (const [index, line] of text.split("\n").entries()) {
+    for (const match of masked[index].matchAll(ADJACENT)) {
       if (isEscaped(line, match.index)) continue;
       pairs.push({
         line: index + 1,
         column: match.index + 1,
         left: match[1],
         right: match[2],
-        range: [match.index + 1, match[0].length],
+        range: [match.index + 1, match[0].length + match[2].length + 2],
       });
     }
   }
@@ -86,8 +63,8 @@ export function ledgerLabels(text) {
 function numericMarkers(text) {
   const markers = [];
   const masked = maskedLines(text);
-  for (const { line, index, skip } of visibleLines(text)) {
-    if (skip || RECORD_LINE.test(line)) continue;
+  for (const [index, line] of text.split("\n").entries()) {
+    if (RECORD_LINE.test(line)) continue;
     for (const match of (masked[index] ?? "").matchAll(MARKER)) {
       if (isEscaped(line, match.index)) continue;
       markers.push({ line: index + 1, label: match[1] });
@@ -97,10 +74,7 @@ function numericMarkers(text) {
 }
 
 export function checkCitations(text, { crossReference = false } = {}) {
-  const definitions = referenceDefinitions(text);
-  const pairs = findAdjacentCitationPairs(text).filter(
-    (pair) => !definitions.has(normaliseLabel(pair.right)),
-  );
+  const pairs = findAdjacentCitationPairs(text);
   const issues = pairs.map((pair) =>
     createIssue(
       "citations",
@@ -132,20 +106,18 @@ export function checkCitations(text, { crossReference = false } = {}) {
 export function separateAdjacentCitations(text) {
   const labels = ledgerLabels(text);
   if (labels.size === 0) return { text, applied: 0 };
-  const definitions = referenceDefinitions(text);
-  const masked = maskedLines(text);
-  const { inside } = lineFenceStates(text);
-  const codeLines = codeBlockLines(text);
+  const pairs = findAdjacentCitationPairs(text);
+  const boundaries = new Map();
+  for (const pair of pairs) {
+    const offsets = boundaries.get(pair.line) ?? [];
+    offsets.push(pair.column - 1 + pair.left.length + 2);
+    boundaries.set(pair.line, offsets);
+  }
   let applied = 0;
   const output = text.split("\n").map((line, index) => {
-    if (inside[index] || codeLines.has(index + 1) || /^ {4,}/u.test(line)) return line;
-    const matches = [...(masked[index] ?? "").matchAll(ADJACENT)].filter(
-      (match) => !isEscaped(line, match.index) && !definitions.has(normaliseLabel(match[2])),
-    );
     let result = line;
-    for (const match of matches.reverse()) {
-      const boundary = match.index + 1 + match[1].length;
-      result = `${result.slice(0, boundary + 1)} ${result.slice(boundary + 1)}`;
+    for (const boundary of (boundaries.get(index + 1) ?? []).reverse()) {
+      result = `${result.slice(0, boundary)} ${result.slice(boundary)}`;
       applied += 1;
     }
     return result;

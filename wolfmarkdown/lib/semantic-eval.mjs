@@ -39,7 +39,7 @@ function recordTokens(record) {
   return (Array.isArray(record) ? record : [record]).map((token) => String(token)).filter(Boolean);
 }
 
-export function evaluateRecordBoundaries(candidateText, records = []) {
+export function evaluateRecordBoundaries(candidateText, records = [], { requirePrefix = false } = {}) {
   const lines = nonEmptyLines(candidateText);
   const assigned = [];
   const errors = [];
@@ -48,6 +48,9 @@ export function evaluateRecordBoundaries(candidateText, records = []) {
   for (const record of records) {
     const tokens = recordTokens(record);
     const label = tokens.join(" ");
+    const prefix = requirePrefix
+      ? new RegExp(`^(?:[-*+] )?${tokens.map(escapeRegExp).join("\\s+")}(?![\\w.-])`, "u")
+      : null;
     if (tokens.length === 0) {
       results.push({ label, line: null, error: null });
       continue;
@@ -55,6 +58,7 @@ export function evaluateRecordBoundaries(candidateText, records = []) {
     let found = -1;
     for (const line of lines) {
       if (assigned.includes(line.lineNumber)) continue;
+      if (prefix && !prefix.test(line.text)) continue;
       if (tokens.every((token) => lineHasToken(line.text, token))) {
         found = line.lineNumber;
         break;

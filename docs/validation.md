@@ -10,7 +10,7 @@ The repository's Node test suite is run with:
 npm test
 ```
 
-At the time of this documentation pass, the suite passes **252 tests**. It covers the current runtime and publication workflow, including:
+At the time of this documentation pass, the suite passes **279 tests**. It covers the current runtime and publication workflow, including:
 
 - CLI flags, batch discovery, standard input, and output-path handling;
 - Doctor runtime/discovery status and installer behaviour (`--skip-deps` and `--runtime-only` separation);
@@ -57,7 +57,7 @@ A patched KaTeX release exists, but the installed `micromark-extension-math@3.1.
 
 ## Lint policy and transparency
 
-The project lint configuration disables MD029. Every MD029 style requires ordered lists to start at 1, which pressures agents to renumber legitimate continuation numbering (for example a Tier 2 list starting at 6 that continues Tier 1). Meaningful numbering is guarded by the structural preservation checks instead, and verification receipts record the effective lint configuration — including disabled rules and the bundled rule inventory — so the active ruleset is auditable.
+The project lint configuration disables MD029. MD029's styles do not support arbitrary continuation starts, which pressures agents to renumber legitimate continuation numbering (for example a Tier 2 list starting at 6 that continues Tier 1). Meaningful numbering is guarded by the structural preservation checks instead, and verification receipts record the effective lint configuration — including disabled rules and the bundled rule inventory — so the active ruleset is auditable.
 
 ## Semantic and property validation
 

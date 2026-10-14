@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import test from "node:test";
 import { skillRoot } from "../lib/paths.mjs";
-import { lintEvidence, toReceipt } from "../lib/report.mjs";
+import { lintEvidence, summariseChecks, toReceipt } from "../lib/report.mjs";
 
 const scriptPath = fileURLToPath(new URL("../scripts/verify-markdown.mjs", import.meta.url));
 
@@ -37,6 +37,8 @@ test("receipts carry the active lint configuration", () => {
   assert.equal(receipt.lint.version, lintEvidence().version);
   assert.ok(receipt.lint.bundledRules.includes("MD001"));
   assert.ok(receipt.lint.disabled.includes("MD029"));
+  assert.equal(summariseChecks({ parse: "pass", ordinals: "fail", records: "skip" }),
+    "parse: Pass\nordinals: Fail\nrecords: Skip");
 });
 
 test("verifier text output summarises the lint configuration", () => {
@@ -51,4 +53,5 @@ test("verifier text output summarises the lint configuration", () => {
     { encoding: "utf8" },
   );
   assert.match(stdout, /Lint: markdownlint \d+\.\d+\.\d+; \d+ bundled rule\(s\), \d+ disabled, \d+ configured/u);
+  assert.match(stdout, /ordinals: Skip\nrecords: Skip\ninvariants: Skip/u);
 });

@@ -17,6 +17,14 @@ import { readFixture } from "./helpers.mjs";
 
 const scriptPath = fileURLToPath(new URL("../scripts/verify-markdown.mjs", import.meta.url));
 
+test("zero-based ordered lists retain their rendered positions", () => {
+  const source = "# Doc\n\n0. Alpha\n1. Bravo\n";
+  const renumbered = source.replace("0. Alpha", "1. Alpha");
+  assert.equal(checkOrdinalPreservation(source, source).ok, true);
+  assert.equal(extractOrdinalRuns(source)[0].start, 0);
+  assert.equal(checkOrdinalPreservation(source, renumbered).ok, false);
+});
+
 function corruptedTier2(source) {
   return source
     .replace("3. **Charlie Model**", "1. **Charlie Model**")
@@ -119,7 +127,7 @@ test("single-item ordered lists and unordered lists carry no ordinal invariant",
 });
 
 test("continuation-numbered lists are not pressured by markdownlint MD029", async () => {
-  // MD029 (all styles) requires lists to start at 1; continuation numbering
+  // MD029 styles do not support arbitrary starts; continuation numbering
   // such as a Tier 2 list starting at 6 is legitimate and must not fail
   // verification, because renumbering to satisfy it would change meaning.
   const markdown = "# Title\n\n## Tier 2\n\n6. Alpha Model — note [1].\n7. Bravo Model — note [2].\n";

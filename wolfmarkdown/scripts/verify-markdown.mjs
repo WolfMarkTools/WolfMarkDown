@@ -81,9 +81,15 @@ function printTextReceipt(receipt) {
         `Preview: ${receipt.preview.unchanged ? "unchanged" : receipt.preview.formattingOnly ? "formatting-only" : "changed"}`,
         `Headings ${receipt.preview.structure.headings.source} -> ${receipt.preview.structure.headings.candidate}`,
         `Tables ${receipt.preview.structure.tables.source} -> ${receipt.preview.structure.tables.candidate}`,
+        `Non-blank lines ${receipt.preview.lineReduction.source} -> ${receipt.preview.lineReduction.candidate}`,
         receipt.preview.note,
         "",
       ].join("\n"),
+    );
+  }
+  if (receipt.lint?.version) {
+    process.stdout.write(
+      `Lint: markdownlint ${receipt.lint.version}; ${receipt.lint.bundledRules?.length ?? 0} bundled rule(s), ${receipt.lint.disabled?.length ?? 0} disabled, ${Object.keys(receipt.lint.configured ?? {}).length} configured\n`,
     );
   }
 }

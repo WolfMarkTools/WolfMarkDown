@@ -1,6 +1,7 @@
 import { lineFenceStates } from "./fences.mjs";
 import { formatMarkdown } from "./format.mjs";
 import { compareTokens, extractTokens } from "./integrity.mjs";
+import { detectRecordRuns, extractOrdinalRuns } from "./preservation.mjs";
 import { documentScaffold } from "./scaffold.mjs";
 
 const SCAFFOLDING = [
@@ -25,11 +26,31 @@ function scaffoldingCount(text) {
   return SCAFFOLDING.reduce((sum, pattern) => sum + countMatches(visible, pattern), 0);
 }
 
+function nonBlankLineCount(text) {
+  return text.split("\n").filter((line) => line.trim() !== "").length;
+}
+
+function runCounts(text) {
+  const recordRuns = detectRecordRuns(text);
+  return {
+    ordinals: extractOrdinalRuns(text).length,
+    records: recordRuns.reduce((sum, run) => sum + run.count, 0),
+  };
+}
+
 export async function previewDocuments(sourceText, candidateText, { destination = null } = {}) {
   const source = documentScaffold(sourceText);
   const candidate = documentScaffold(candidateText);
   const formattedSource = await formatMarkdown(sourceText);
   const tokens = compareTokens(extractTokens(sourceText), candidateText);
+  const lineReduction = {
+    source: nonBlankLineCount(sourceText),
+    candidate: nonBlankLineCount(candidateText),
+  };
+  lineReduction.reducedBy = lineReduction.source - lineReduction.candidate;
+  lineReduction.warn =
+    lineReduction.candidate < lineReduction.source &&
+    lineReduction.reducedBy > Math.max(10, lineReduction.source * 0.2);
   return {
     destination,
     unchanged: sourceText === candidateText,
@@ -41,8 +62,10 @@ export async function previewDocuments(sourceText, candidateText, { destination 
       lists: { source: source.lists.length, candidate: candidate.lists.length },
       fences: { source: source.fences.length, candidate: candidate.fences.length },
     },
+    runs: { source: runCounts(sourceText), candidate: runCounts(candidateText) },
     scaffolding: { source: scaffoldingCount(sourceText), candidate: scaffoldingCount(candidateText) },
     protectedTokens: { missing: tokens.missing, preserved: tokens.ok },
+    lineReduction,
     note: PREVIEW_NOTE,
   };
 }

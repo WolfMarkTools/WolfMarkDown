@@ -292,7 +292,7 @@ function insideAnySpan(offset, spans) {
   return spans.some(([start, end]) => offset >= start && offset < end);
 }
 
-function maskInlineCode(line) {
+export function maskInlineCode(line) {
   const chars = line.split("");
   let open = null;
   for (let index = 0; index < chars.length; index += 1) {

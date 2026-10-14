@@ -1,16 +1,17 @@
 #!/usr/bin/env node
 
+import { separateAdjacentCitations } from "../lib/citations.mjs";
 import { formatMarkdown } from "../lib/format.mjs";
 import { parseFlags, printHelp } from "../lib/cli.mjs";
 import { assertRegularFileOrMissing, atomicWriteFile } from "../lib/publish.mjs";
 import { isStdinPath, readTextSource } from "../lib/stdio.mjs";
 
 async function main(argv) {
-  const parsed = parseFlags(argv, ["--stdout", "--check"]);
+  const parsed = parseFlags(argv, ["--stdout", "--check", "--safe-fixes"]);
   if (parsed.help) {
     printHelp(
       "WolfMarkDown formatter",
-      "Usage: node scripts/format-markdown.mjs <file.md|-> [--stdout] [--check]",
+      "Usage: node scripts/format-markdown.mjs <file.md|-> [--stdout] [--check] [--safe-fixes]\n--safe-fixes applies allow-listed lexical repairs (separating adjacent numeric citations in recognised ledgers) before formatting.",
     );
     return 0;
   }
@@ -24,9 +25,18 @@ async function main(argv) {
   if (parsed.flags.stdout && parsed.flags.check) {
     throw new Error("Conflicting flags: use either --stdout or --check, not both.");
   }
-  const input = await readTextSource(file);
-  const formatted = await formatMarkdown(input);
+  let input = await readTextSource(file);
   const label = isStdinPath(file) ? "stdin" : file;
+  let safeFixes = 0;
+  if (parsed.flags["safe-fixes"]) {
+    const fixed = separateAdjacentCitations(input);
+    input = fixed.text;
+    safeFixes = fixed.applied;
+    if (safeFixes > 0) {
+      process.stderr.write(`${label}: ${safeFixes} safe citation fix(es) applied\n`);
+    }
+  }
+  const formatted = await formatMarkdown(input);
   if (parsed.flags.check) {
     if (formatted !== input) {
       process.stderr.write(`${label} is not formatted.\n`);

@@ -1,6 +1,7 @@
 import { lint as markdownlintSync } from "markdownlint/sync";
 import { parse as parseYaml } from "yaml";
 import { visit } from "unist-util-visit";
+import { checkCitations } from "./citations.mjs";
 import { assertFencesBalanced, lineFenceStates } from "./fences.mjs";
 import { formatMarkdown } from "./format.mjs";
 import { compareTokenIndexes, extractTokenIndex, integrityCoverage } from "./integrity.mjs";
@@ -152,18 +153,40 @@ function whitespaceIssues(text) {
   return issues;
 }
 
-function markdownlintIssues(text) {
+function rangesOverlap(left, right) {
+  return left[0] < right[0] + right[1] && right[0] < left[0] + left[1];
+}
+
+// A citation-specific finding supersedes the generic MD052 finding for the
+// same pair. Deduplication is structured — rule identifiers, line and
+// column range — never human-readable message matching.
+function isSuppressedFinding(item, pairs) {
+  if (!item.ruleNames?.includes("MD052")) return false;
+  return pairs.some((pair) => {
+    if (item.lineNumber !== pair.line) return false;
+    if (Array.isArray(item.errorRange) && item.errorRange.length === 2) {
+      return rangesOverlap(item.errorRange, pair.range);
+    }
+    return true;
+  });
+}
+
+function markdownlintIssues(text, { suppressedPairs = [] } = {}) {
   const report = markdownlintSync({
     strings: { document: text },
     config: loadMarkdownlintConfig(),
     resultVersion: 3,
   });
   const findings = report.document ?? [];
-  return findings.map((item) =>
-    createIssue("markdownlint", `markdownlint ${item.ruleNames[0]} on line ${item.lineNumber}: ${item.ruleDescription}`, {
-      line: item.lineNumber,
-    }),
-  );
+  return findings
+    .filter((item) => !isSuppressedFinding(item, suppressedPairs))
+    .map((item) =>
+      createIssue(
+        "markdownlint",
+        `markdownlint ${item.ruleNames[0]} on line ${item.lineNumber}: ${item.ruleDescription}`,
+        { line: item.lineNumber },
+      ),
+    );
 }
 
 function elapsedMs(started) {
@@ -187,6 +210,7 @@ export async function verifyMarkdown(text, { integrityFromText, preserveStructur
     ordinals: integrityFromText != null && preserveStructure ? false : null,
     records: integrityFromText != null && preserveStructure ? false : null,
     invariants: invariants == null ? null : false,
+    citations: false,
   };
   const issues = [];
   const structuralWarnings = [];
@@ -226,8 +250,15 @@ export async function verifyMarkdown(text, { integrityFromText, preserveStructur
   if (!checks.prettier) issues.push(createIssue("prettier", "Prettier formatting check failed."));
   timings.prettierMs = elapsedMs(prettierStarted);
 
+  const citationsStarted = performance.now();
+  const citations = checkCitations(text, { crossReference: preserveStructure });
+  checks.citations = citations.ok;
+  issues.push(...citations.issues);
+  structuralWarnings.push(...citations.warnings);
+  timings.citationsMs = elapsedMs(citationsStarted);
+
   const lintStarted = performance.now();
-  const lint = markdownlintIssues(text);
+  const lint = markdownlintIssues(text, { suppressedPairs: citations.pairs });
   checks.markdownlint = lint.length === 0;
   issues.push(...lint);
   timings.markdownlintMs = elapsedMs(lintStarted);

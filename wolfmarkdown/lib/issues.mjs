@@ -34,6 +34,8 @@ export function remediationFor(check) {
       return "Preserve the original ordered numbering; do not let formatting or linting renumber meaningful sequences, and reconcile any intended change deliberately.";
     case "records":
       return "Keep each source record on its own line in the candidate — for example as list items or with two-space hard breaks — so adjacent records do not merge into one paragraph.";
+    case "citations":
+      return "Separate adjacent numeric citations with a space ([6] [26]) so they are not parsed as one reference link, then verify again.";
     default:
       return "Fix the reported Markdown issue, then verify again.";
   }

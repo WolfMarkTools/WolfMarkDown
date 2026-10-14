@@ -110,8 +110,25 @@ export function extractOrdinalRuns(text) {
   return runs;
 }
 
-function nearestHeadingKey(run) {
-  return run.context.length > 0 ? run.context[run.context.length - 1].normalised : "";
+// The correspondence key is the run's complete normalised heading ancestry:
+// two subsections sharing a name under different parents are different
+// contexts, not one shared pool.
+function headingPathKey(run) {
+  return run.context.map((entry) => entry.normalised).join("\u0000");
+}
+
+// Every heading ancestry chain present in a document, used to decide whether
+// a section still exists in the candidate.
+function headingPathKeys(text) {
+  const { tree } = parseMarkdown(text);
+  const paths = new Set();
+  const stack = [];
+  for (const heading of collectHeadings(tree)) {
+    while (stack.length > 0 && stack[stack.length - 1].depth >= heading.depth) stack.pop();
+    stack.push(heading);
+    paths.add(stack.map((entry) => normaliseHeading(entry.text)).join("\u0000"));
+  }
+  return paths;
 }
 
 function nearestHeadingText(run) {
@@ -144,10 +161,10 @@ function longestCommonSubsequenceLength(left, right) {
 // a sequence whose own context cannot be confirmed.
 function bestCorrespondence(sourceRun, candidateRuns) {
   const anchors = sourceRun.items.map((item) => item.anchor);
-  const contextKey = nearestHeadingKey(sourceRun);
+  const contextKey = headingPathKey(sourceRun);
   let best = null;
   for (const run of candidateRuns) {
-    if (nearestHeadingKey(run) !== contextKey) continue;
+    if (headingPathKey(run) !== contextKey) continue;
     const score = longestCommonSubsequenceLength(
       anchors,
       run.items.map((item) => item.anchor),
@@ -167,9 +184,7 @@ export function checkOrdinalPreservation(snapshotText, candidateText, options = 
     );
   }
   const candidateRuns = extractOrdinalRuns(candidateText);
-  const candidateHeadingKeys = new Set(
-    collectHeadings(parseMarkdown(candidateText).tree).map((heading) => normaliseHeading(heading.text)),
-  );
+  const candidateHeadingPaths = headingPathKeys(candidateText);
   const issues = [];
   const warnings = [];
   let itemsChecked = 0;
@@ -195,7 +210,7 @@ export function checkOrdinalPreservation(snapshotText, candidateText, options = 
       } else if (
         best == null &&
         run.context.length > 0 &&
-        candidateHeadingKeys.has(nearestHeadingKey(run))
+        candidateHeadingPaths.has(headingPathKey(run))
       ) {
         issues.push(
           createIssue(
@@ -216,11 +231,11 @@ export function checkOrdinalPreservation(snapshotText, candidateText, options = 
       continue;
     }
 
-    const poolKey = nearestHeadingKey(best.run);
+    const poolKey = headingPathKey(best.run);
     const pool =
       poolKey === ""
         ? [best.run]
-        : candidateRuns.filter((candidate) => nearestHeadingKey(candidate) === poolKey);
+        : candidateRuns.filter((candidate) => headingPathKey(candidate) === poolKey);
     const poolItems = [];
     for (const candidate of pool) {
       for (const item of candidate.items) {

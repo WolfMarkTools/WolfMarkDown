@@ -252,3 +252,61 @@ test("heading promotion is not a false failure; a heading rename is reported as 
   assert.equal(renamed.ok, true, renamed.issues.map((issue) => issue.message).join("\n"));
   assert.deepEqual(renamed.warnings.map((warning) => warning.code), ["ordinal-context-ambiguous"]);
 });
+
+test("repeated subsection names under different parents do not share a correspondence pool", () => {
+  const source = [
+    "# Product A",
+    "",
+    "## Ranking",
+    "",
+    "1. Alpha Model — note one",
+    "2. Bravo Model — note two",
+    "3. Charlie Model — note three",
+    "",
+    "# Product B",
+    "",
+    "## Ranking",
+    "",
+    "1. Alpha Model — other one",
+    "2. Bravo Model — other two",
+    "3. Charlie Model — other three",
+    "",
+  ].join("\n");
+  const aListDeleted = [
+    "# Product A",
+    "",
+    "## Ranking",
+    "",
+    "# Product B",
+    "",
+    "## Ranking",
+    "",
+    "1. Alpha Model — other one",
+    "2. Bravo Model — other two",
+    "3. Charlie Model — other three",
+    "",
+  ].join("\n");
+  const sectionDeleted = [
+    "# Product B",
+    "",
+    "## Ranking",
+    "",
+    "1. Alpha Model — other one",
+    "2. Bravo Model — other two",
+    "3. Charlie Model — other three",
+    "",
+  ].join("\n");
+
+  // Product A's list is gone but its section remains: hard failure, even
+  // though Product B's identically named ranking has the same anchors at
+  // the same positions.
+  const missing = checkOrdinalPreservation(source, aListDeleted);
+  assert.equal(missing.ok, false);
+  assert.ok(missing.issues.some((issue) => /different ordered list/u.test(issue.message)));
+
+  // The whole Product A section is gone: ambiguity is reported instead.
+  const ambiguous = checkOrdinalPreservation(source, sectionDeleted);
+  assert.equal(ambiguous.ok, true, ambiguous.issues.map((issue) => issue.message).join("\n"));
+  assert.deepEqual(ambiguous.warnings.map((warning) => warning.code), ["ordinal-context-ambiguous"]);
+});
+

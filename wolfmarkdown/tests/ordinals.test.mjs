@@ -391,4 +391,3 @@ test("a split candidate cannot recombine same-section lists to fake a match", ()
   assert.equal(result.ok, false);
   assert.ok(result.issues.some((issue) => /different ordered list/u.test(issue.message)));
 });
-

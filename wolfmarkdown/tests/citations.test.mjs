@@ -272,4 +272,3 @@ test("pairs inside container-prefixed fenced code are never modified", () => {
   assert.equal(fixed.applied, 0);
   assert.equal(fixed.text, doc);
 });
-

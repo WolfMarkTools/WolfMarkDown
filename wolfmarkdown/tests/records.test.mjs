@@ -187,4 +187,3 @@ test("records wrapped in inline code cannot satisfy record preservation", async 
   const result = checkRecordPreservation(source, wrapped);
   assert.equal(result.ok, false);
 });
-

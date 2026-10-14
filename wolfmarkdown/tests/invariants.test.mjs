@@ -465,4 +465,3 @@ test("declared record runs are compared by identity, not only count", () => {
   const intact = checkInvariants({ declaration, sourceText: source, candidateText: source });
   assert.equal(intact.ok, true, intact.issues.map((issue) => issue.message).join("\n"));
 });
-

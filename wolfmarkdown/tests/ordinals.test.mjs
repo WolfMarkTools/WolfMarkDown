@@ -350,3 +350,37 @@ test("one candidate list cannot satisfy two source sequences", () => {
   assert.equal(checkOrdinalPreservation(source, source).ok, true);
 });
 
+test("a split candidate cannot recombine same-section lists to fake a match", () => {
+  const source = [
+    "# Doc",
+    "",
+    "## Steps",
+    "",
+    "1. Alpha Model — one",
+    "2. Bravo Model — two",
+    "3. Charlie Model — three",
+    "4. Delta Model — four",
+    "",
+  ].join("\n");
+  const split = [
+    "# Doc",
+    "",
+    "## Steps",
+    "",
+    "1. Alpha Model — one",
+    "2. Bravo Model — two",
+    "",
+    "Interlude text.",
+    "",
+    "3. Charlie Model — three",
+    "4. Delta Model — four",
+    "",
+  ].join("\n");
+
+  // One source sequence split into two candidate lists: the second list
+  // must not complete the first list's partial match.
+  const result = checkOrdinalPreservation(source, split);
+  assert.equal(result.ok, false);
+  assert.ok(result.issues.some((issue) => /different ordered list/u.test(issue.message)));
+});
+

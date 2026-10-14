@@ -239,11 +239,10 @@ export function checkOrdinalPreservation(snapshotText, candidateText, options = 
     // a single surviving lookalike cannot satisfy two source runs.
     claimed.add(best.run);
 
-    const poolKey = headingPathKey(best.run);
-    const pool =
-      poolKey === ""
-        ? [best.run]
-        : candidateRuns.filter((candidate) => headingPathKey(candidate) === poolKey);
+    // Item lookups are confined to the candidate list selected for this
+    // source run; sibling lists in the same section must not combine to
+    // complete a partial match.
+    const pool = [best.run];
     const poolItems = [];
     for (const candidate of pool) {
       for (const item of candidate.items) {

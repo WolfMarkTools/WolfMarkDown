@@ -264,3 +264,45 @@ test("CLI: --invariants requires a snapshot and records evidence in the receipt"
   }
   assert.equal(failed, true);
 });
+
+test("declared section invariants fail when the sequence left its context", () => {
+  const source = [
+    "# Report",
+    "",
+    "## Performance ranking",
+    "",
+    "1. Alpha Model — fast",
+    "2. Bravo Model — steady",
+    "3. Charlie Model — slow",
+    "",
+    "## Cost ranking",
+    "",
+    "1. Alpha Model — cheap",
+    "2. Bravo Model — mid",
+    "3. Charlie Model — dear",
+    "",
+  ].join("\n");
+  const headingKept = [
+    "# Report",
+    "",
+    "## Performance ranking",
+    "",
+    "## Cost ranking",
+    "",
+    "1. Alpha Model — cheap",
+    "2. Bravo Model — mid",
+    "3. Charlie Model — dear",
+    "",
+  ].join("\n");
+  const declaration = parseInvariants(
+    JSON.stringify({
+      version: 1,
+      sourceSha256: hashText(source),
+      preserve: { ordinalRuns: [{ id: "perf", section: "Performance ranking", start: 1, end: 3 }] },
+      require: {},
+    }),
+  ).declaration;
+  const result = checkInvariants({ declaration, sourceText: source, candidateText: headingKept });
+  assert.equal(result.ok, false);
+  assert.ok(result.issues.some((issue) => /different ordered list/u.test(issue.message)));
+});

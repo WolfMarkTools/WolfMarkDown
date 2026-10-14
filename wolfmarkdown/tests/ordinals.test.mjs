@@ -163,3 +163,92 @@ test("CLI: --preserve-structure fails a renumbered ranking and passes a faithful
   assert.equal(passReceipt.ok, true);
   assert.equal(passReceipt.checks.ordinals, "pass");
 });
+
+test("a lookalike list in another section cannot stand in for a vanished sequence", async () => {
+  const source = [
+    "# Report",
+    "",
+    "## Performance ranking",
+    "",
+    "1. Alpha Model — fast",
+    "2. Bravo Model — steady",
+    "3. Charlie Model — slow",
+    "",
+    "## Cost ranking",
+    "",
+    "1. Alpha Model — cheap",
+    "2. Bravo Model — mid",
+    "3. Charlie Model — dear",
+    "",
+  ].join("\n");
+  const costOnly = [
+    "# Report",
+    "",
+    "## Cost ranking",
+    "",
+    "1. Alpha Model — cheap",
+    "2. Bravo Model — mid",
+    "3. Charlie Model — dear",
+    "",
+  ].join("\n");
+  const headingKept = [
+    "# Report",
+    "",
+    "## Performance ranking",
+    "",
+    "## Cost ranking",
+    "",
+    "1. Alpha Model — cheap",
+    "2. Bravo Model — mid",
+    "3. Charlie Model — dear",
+    "",
+  ].join("\n");
+
+  // Heading removed too: the change is ambiguous, so it is reported rather
+  // than silently treated as preservation by the unrelated cost list.
+  const ambiguous = checkOrdinalPreservation(source, costOnly);
+  assert.equal(ambiguous.ok, true, ambiguous.issues.map((issue) => issue.message).join("\n"));
+  assert.deepEqual(ambiguous.warnings.map((warning) => warning.code), ["ordinal-context-ambiguous"]);
+
+  // Heading retained: the section remains but its sequence does not.
+  const missing = checkOrdinalPreservation(source, headingKept);
+  assert.equal(missing.ok, false);
+  assert.ok(missing.issues.some((issue) => /different ordered list/u.test(issue.message)));
+  assert.equal(missing.warnings.length, 0);
+
+  // A reduced list whose remainder no longer qualifies as a run is not
+  // silently covered by the intact lookalike either.
+  const reduced = [
+    "# Report",
+    "",
+    "## Performance ranking",
+    "",
+    "1. Alpha Model — fast",
+    "",
+    "## Cost ranking",
+    "",
+    "1. Alpha Model — cheap",
+    "2. Bravo Model — mid",
+    "3. Charlie Model — dear",
+    "",
+  ].join("\n");
+  assert.equal(checkOrdinalPreservation(source, reduced).ok, false);
+
+  const verified = await verifyMarkdown(headingKept, { integrityFromText: source, preserveStructure: true });
+  assert.equal(verified.checks.ordinals, false);
+});
+
+test("heading promotion is not a false failure; a heading rename is reported as ambiguity", () => {
+  const promoted = checkOrdinalPreservation(
+    "# Title\n\n### Tier 2\n\n1. Aaa one\n2. Bbb two\n",
+    "# Title\n\n## Tier 2\n\n1. Aaa one\n2. Bbb two\n",
+  );
+  assert.equal(promoted.ok, true, promoted.issues.map((issue) => issue.message).join("\n"));
+
+  const renamed = checkOrdinalPreservation(
+    "# Title\n\n## Perf ranking\n\n1. Aaa one\n2. Bbb two\n",
+    "# Title\n\n## Performance ranking\n\n1. Aaa one\n2. Bbb two\n",
+  );
+  assert.equal(renamed.ok, true, renamed.issues.map((issue) => issue.message).join("\n"));
+  assert.deepEqual(renamed.warnings.map((warning) => warning.code), ["ordinal-context-ambiguous"]);
+});

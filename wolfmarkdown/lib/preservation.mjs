@@ -139,22 +139,20 @@ function longestCommonSubsequenceLength(left, right) {
   return previous[right.length];
 }
 
+// Correspondence is restricted to candidate runs in the same heading
+// context: a lookalike list in another section must not be able to satisfy
+// a sequence whose own context cannot be confirmed.
 function bestCorrespondence(sourceRun, candidateRuns) {
   const anchors = sourceRun.items.map((item) => item.anchor);
+  const contextKey = nearestHeadingKey(sourceRun);
   let best = null;
   for (const run of candidateRuns) {
+    if (nearestHeadingKey(run) !== contextKey) continue;
     const score = longestCommonSubsequenceLength(
       anchors,
       run.items.map((item) => item.anchor),
     );
-    const contextMatch = nearestHeadingKey(run) === nearestHeadingKey(sourceRun);
-    if (
-      best == null ||
-      score > best.score ||
-      (score === best.score && contextMatch && !best.contextMatch)
-    ) {
-      best = { run, score, contextMatch };
-    }
+    if (best == null || score > best.score) best = { run, score };
   }
   return best;
 }
@@ -169,6 +167,9 @@ export function checkOrdinalPreservation(snapshotText, candidateText, options = 
     );
   }
   const candidateRuns = extractOrdinalRuns(candidateText);
+  const candidateHeadingKeys = new Set(
+    collectHeadings(parseMarkdown(candidateText).tree).map((heading) => normaliseHeading(heading.text)),
+  );
   const issues = [];
   const warnings = [];
   let itemsChecked = 0;
@@ -188,6 +189,18 @@ export function checkOrdinalPreservation(snapshotText, candidateText, options = 
             `Ordered list starting at line ${run.line} is missing from the candidate (items: ${anchors
               .slice(0, 3)
               .join(", ")}). Ordered numbering must survive preservation checks.`,
+            { line: run.line },
+          ),
+        );
+      } else if (
+        best == null &&
+        run.context.length > 0 &&
+        candidateHeadingKeys.has(nearestHeadingKey(run))
+      ) {
+        issues.push(
+          createIssue(
+            "ordinals",
+            `Ordered list starting at line ${run.line} no longer exists${sectionLabel(run)}; its items were found in a different ordered list instead. Its original sequence position must be preserved, or the change reconciled deliberately.`,
             { line: run.line },
           ),
         );

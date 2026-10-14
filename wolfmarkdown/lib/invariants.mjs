@@ -209,6 +209,14 @@ function isContiguousSubsequence(values, expected) {
   return false;
 }
 
+// A declared invariant covers only its declared positions: trim a grounded
+// run to that range so unrelated changes elsewhere in a longer list do not
+// fail the declared requirement.
+function trimRunToRange(run, start, end) {
+  const items = run.items.filter((item) => item.position >= start && item.position <= end);
+  return { ...run, start, count: items.length, items };
+}
+
 export function checkInvariants({ declaration, sourceText, candidateText }) {
   const issues = [];
   const warnings = [];
@@ -290,11 +298,14 @@ export function checkInvariants({ declaration, sourceText, candidateText }) {
     );
     const expected = [];
     for (let value = requirement.start; value <= requirement.end; value += 1) expected.push(value);
-    const grounded = sourceRuns.filter((run) => {
-      const values = [];
-      for (let index = 0; index < run.count; index += 1) values.push(run.start + index);
-      return isContiguousSubsequence(values, expected);
-    });
+    const grounded = sourceRuns
+      .filter((run) => {
+        const values = [];
+        for (let index = 0; index < run.count; index += 1) values.push(run.start + index);
+        return isContiguousSubsequence(values, expected);
+      })
+      .map((run) => trimRunToRange(run, requirement.start, requirement.end))
+      .filter((run) => run.items.length > 0);
     if (grounded.length === 0) {
       issues.push(
         createIssue(

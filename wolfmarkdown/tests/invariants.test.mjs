@@ -337,3 +337,37 @@ test("ambiguity warnings from declared ordinal checks reach the result and recei
   assert.ok(verified.warnings.some((warning) => warning.code === "ordinal-context-ambiguous"));
 });
 
+test("declared ordinal invariants only enforce their declared range", () => {
+  const items = [
+    "1. Alpha one",
+    "2. Bravo two",
+    "3. Charlie three",
+    "4. Delta four",
+    "5. Echo five",
+    "6. Foxtrot six",
+    "7. Golf seven",
+    "8. Hotel eight",
+    "9. India nine",
+    "10. Juliett ten",
+  ];
+  const source = ["# Doc", "", "## Ranking", "", ...items, ""].join("\n");
+  const declaration = parseInvariants(
+    JSON.stringify({
+      version: 1,
+      sourceSha256: hashText(source),
+      preserve: { ordinalRuns: [{ id: "mid", section: "Ranking", start: 3, end: 4 }] },
+      require: {},
+    }),
+  ).declaration;
+
+  // A change outside the declared range does not fail the declared invariant.
+  const outside = source.replace("9. India nine", "9. Renamed nine");
+  const relaxed = checkInvariants({ declaration, sourceText: source, candidateText: outside });
+  assert.equal(relaxed.ok, true, relaxed.issues.map((issue) => issue.message).join("\n"));
+
+  // A change inside the declared range still fails.
+  const inside = source.replace("4. Delta four", "4. Renamed four");
+  const strict = checkInvariants({ declaration, sourceText: source, candidateText: inside });
+  assert.equal(strict.ok, false);
+});
+

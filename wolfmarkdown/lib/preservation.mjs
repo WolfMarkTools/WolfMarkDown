@@ -1,0 +1,263 @@
+// Structure-preservation helpers: ordinal-run extraction and contextual
+// comparison between an untouched source snapshot and a candidate.
+//
+// Ordinal runs are compared by item identity — an anchor derived from the
+// item's own text — within the candidate list that best corresponds to the
+// source list, so a matching number appearing in an unrelated sequence
+// cannot satisfy preservation. Positions use effective rendered numbering
+// (the list's start value plus the item index), which is insensitive to
+// incidental notation such as marker punctuation, all-ones item numbering,
+// or a printer normalising gaps in a sequential run.
+//
+// Checked only when structural preservation is requested; the untouched
+// source snapshot is the baseline.
+import { visit } from "unist-util-visit";
+import { createIssue } from "./issues.mjs";
+import { parseMarkdown } from "./parse.mjs";
+
+const MAX_ANCHOR_WORDS = 5;
+const TRAILING_PUNCT = /^[—–\-:;,·•.]+$/u;
+const DASH_SPLIT = /\s+[—–]\s+/u;
+
+function plainText(node) {
+  if (!node) return "";
+  if (node.type === "text" || node.type === "inlineCode") return node.value ?? "";
+  if (node.type === "image") return node.alt ?? "";
+  if (!node.children) return "";
+  return node.children.map((child) => plainText(child)).join("");
+}
+
+function collapseWhitespace(value) {
+  return String(value ?? "").replace(/\s+/gu, " ").trim();
+}
+
+// A short, stable identity for a list item: its leading phrase up to an
+// em-dash separator, otherwise its first few words, with trailing
+// punctuation removed. Emphasis and whitespace changes do not affect it.
+export function itemAnchor(text) {
+  const collapsed = collapseWhitespace(text);
+  if (!collapsed) return "";
+  const base = collapsed.split(DASH_SPLIT)[0] || collapsed;
+  const words = base.split(" ").filter(Boolean).slice(0, MAX_ANCHOR_WORDS);
+  while (words.length > 1 && TRAILING_PUNCT.test(words[words.length - 1])) words.pop();
+  return words.join(" ").replace(/[:;,]+$/u, "").trim();
+}
+
+export function normaliseHeading(text) {
+  return collapseWhitespace(text)
+    .toLowerCase()
+    .replace(/^\d+(?:\.\d+)*[.)]?\s+/u, "");
+}
+
+function collectHeadings(tree) {
+  const headings = [];
+  visit(tree, "heading", (node) => {
+    headings.push({
+      depth: node.depth,
+      text: collapseWhitespace(plainText(node)),
+      offset: node.position?.start?.offset ?? null,
+    });
+  });
+  return headings;
+}
+
+function contextFor(headings, offset) {
+  const stack = [];
+  for (const heading of headings) {
+    if (offset == null || heading.offset == null || heading.offset > offset) break;
+    while (stack.length > 0 && stack[stack.length - 1].depth >= heading.depth) stack.pop();
+    stack.push(heading);
+  }
+  return stack.map((heading) => ({
+    depth: heading.depth,
+    text: heading.text,
+    normalised: normaliseHeading(heading.text),
+  }));
+}
+
+// Extract ordered-list runs with their item identities, effective positions
+// and heading context. Runs with fewer than two identified items are
+// ignored: a single ordered item carries no sequence to preserve.
+export function extractOrdinalRuns(text) {
+  const { tree } = parseMarkdown(text);
+  const headings = collectHeadings(tree);
+  const runs = [];
+  visit(tree, "list", (node) => {
+    if (!node.ordered || !node.children || node.children.length < 2) return;
+    const start =
+      typeof node.start === "number" && Number.isFinite(node.start) && node.start > 0 ? node.start : 1;
+    const items = [];
+    node.children.forEach((item, index) => {
+      const anchor = itemAnchor(plainText(item));
+      if (anchor) items.push({ anchor, position: start + index });
+    });
+    if (items.length < 2) return;
+    runs.push({
+      start,
+      count: items.length,
+      items,
+      context: contextFor(headings, node.position?.start?.offset ?? null),
+      line: node.position?.start?.line ?? null,
+    });
+  });
+  return runs;
+}
+
+function nearestHeadingKey(run) {
+  return run.context.length > 0 ? run.context[run.context.length - 1].normalised : "";
+}
+
+function nearestHeadingText(run) {
+  return run.context.length > 0 ? run.context[run.context.length - 1].text : null;
+}
+
+function sectionLabel(run) {
+  const heading = nearestHeadingText(run);
+  return heading ? ` in section "${heading}"` : "";
+}
+
+function longestCommonSubsequenceLength(left, right) {
+  if (left.length === 0 || right.length === 0) return 0;
+  let previous = new Array(right.length + 1).fill(0);
+  for (let i = 1; i <= left.length; i += 1) {
+    const current = new Array(right.length + 1).fill(0);
+    for (let j = 1; j <= right.length; j += 1) {
+      current[j] =
+        left[i - 1] === right[j - 1]
+          ? previous[j - 1] + 1
+          : Math.max(previous[j], current[j - 1]);
+    }
+    previous = current;
+  }
+  return previous[right.length];
+}
+
+function bestCorrespondence(sourceRun, candidateRuns) {
+  const anchors = sourceRun.items.map((item) => item.anchor);
+  let best = null;
+  for (const run of candidateRuns) {
+    const score = longestCommonSubsequenceLength(
+      anchors,
+      run.items.map((item) => item.anchor),
+    );
+    const contextMatch = nearestHeadingKey(run) === nearestHeadingKey(sourceRun);
+    if (
+      best == null ||
+      score > best.score ||
+      (score === best.score && contextMatch && !best.contextMatch)
+    ) {
+      best = { run, score, contextMatch };
+    }
+  }
+  return best;
+}
+
+export function checkOrdinalPreservation(snapshotText, candidateText, options = {}) {
+  const { section = null } = options;
+  let sourceRuns = options.runs ?? extractOrdinalRuns(snapshotText);
+  if (section != null) {
+    const wanted = normaliseHeading(section);
+    sourceRuns = sourceRuns.filter((run) =>
+      run.context.some((entry) => entry.normalised === wanted),
+    );
+  }
+  const candidateRuns = extractOrdinalRuns(candidateText);
+  const issues = [];
+  const warnings = [];
+  let itemsChecked = 0;
+
+  for (const run of sourceRuns) {
+    const anchors = run.items.map((item) => item.anchor);
+    const best = bestCorrespondence(run, candidateRuns);
+    const threshold = Math.max(1, Math.ceil(run.count / 2));
+    if (best == null || best.score < threshold) {
+      const anywhere = candidateRuns.some((candidate) =>
+        candidate.items.some((item) => anchors.includes(item.anchor)),
+      );
+      if (!anywhere) {
+        issues.push(
+          createIssue(
+            "ordinals",
+            `Ordered list starting at line ${run.line} is missing from the candidate (items: ${anchors
+              .slice(0, 3)
+              .join(", ")}). Ordered numbering must survive preservation checks.`,
+            { line: run.line },
+          ),
+        );
+      } else {
+        warnings.push({
+          code: "ordinal-context-ambiguous",
+          message:
+            `Could not confirm the sequence context for the ordered list starting at line ${run.line} ` +
+            `(items: ${anchors.slice(0, 3).join(", ")}). Report this ambiguity rather than treating the numbering as preserved.`,
+          examples: anchors.slice(0, 3),
+        });
+      }
+      continue;
+    }
+
+    const poolKey = nearestHeadingKey(best.run);
+    const pool =
+      poolKey === ""
+        ? [best.run]
+        : candidateRuns.filter((candidate) => nearestHeadingKey(candidate) === poolKey);
+    const poolItems = [];
+    for (const candidate of pool) {
+      for (const item of candidate.items) {
+        poolItems.push({ anchor: item.anchor, position: item.position, run: candidate });
+      }
+    }
+    const consumed = new Set();
+    for (const sourceItem of run.items) {
+      itemsChecked += 1;
+      const index = poolItems.findIndex(
+        (item, itemIndex) => !consumed.has(itemIndex) && item.anchor === sourceItem.anchor,
+      );
+      if (index === -1) {
+        const elsewhere = candidateRuns.some((candidate) =>
+          candidate.items.some((item) => item.anchor === sourceItem.anchor),
+        );
+        if (elsewhere) {
+          issues.push(
+            createIssue(
+              "ordinals",
+              `Ordered item "${sourceItem.anchor}" expected at position ${sourceItem.position}${sectionLabel(run)} ` +
+                "was found in a different ordered list instead; its original sequence position must be preserved.",
+              { line: run.line },
+            ),
+          );
+        } else {
+          issues.push(
+            createIssue(
+              "ordinals",
+              `Ordered item "${sourceItem.anchor}" was not found in any ordered list in the candidate; ` +
+                `its position ${sourceItem.position}${sectionLabel(run)} cannot be preserved.`,
+              { line: run.line },
+            ),
+          );
+        }
+        continue;
+      }
+      consumed.add(index);
+      const found = poolItems[index];
+      if (found.position !== sourceItem.position) {
+        issues.push(
+          createIssue(
+            "ordinals",
+            `Ordered item "${sourceItem.anchor}" is at position ${found.position} but was at position ` +
+              `${sourceItem.position}${sectionLabel(run)}. Preserve the original numbering or reconcile the change deliberately.`,
+            { line: found.run.line },
+          ),
+        );
+      }
+    }
+  }
+
+  return {
+    ok: issues.length === 0,
+    issues,
+    warnings,
+    runsChecked: sourceRuns.length,
+    itemsChecked,
+  };
+}

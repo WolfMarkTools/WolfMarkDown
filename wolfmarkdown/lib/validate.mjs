@@ -7,6 +7,7 @@ import { compareTokenIndexes, extractTokenIndex, integrityCoverage } from "./int
 import { createIssue } from "./issues.mjs";
 import { parseMarkdown } from "./parse.mjs";
 import { loadMarkdownlintConfig } from "./paths.mjs";
+import { checkOrdinalPreservation } from "./preservation.mjs";
 
 const DELIMITER = /^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$/;
 const NON_TABLE_PIPE = /^(?:[-*+]|\d{1,9}[.)])\s|^>|^#{1,6}\s/;
@@ -168,7 +169,7 @@ function elapsedMs(started) {
   return Math.round(performance.now() - started);
 }
 
-export async function verifyMarkdown(text, { integrityFromText } = {}) {
+export async function verifyMarkdown(text, { integrityFromText, preserveStructure = false } = {}) {
   const started = performance.now();
   const timings = {};
   const checks = {
@@ -182,8 +183,10 @@ export async function verifyMarkdown(text, { integrityFromText } = {}) {
     whitespace: false,
     integrity: integrityFromText == null ? null : false,
     idempotence: false,
+    ordinals: integrityFromText != null && preserveStructure ? false : null,
   };
   const issues = [];
+  const structuralWarnings = [];
 
   const parseStarted = performance.now();
   try {
@@ -258,6 +261,15 @@ export async function verifyMarkdown(text, { integrityFromText } = {}) {
     timings.integrityMs = elapsedMs(integrityStarted);
   }
 
+  if (preserveStructure && integrityFromText != null) {
+    const ordinalsStarted = performance.now();
+    const ordinals = checkOrdinalPreservation(integrityFromText, text);
+    checks.ordinals = ordinals.ok;
+    issues.push(...ordinals.issues);
+    structuralWarnings.push(...ordinals.warnings);
+    timings.ordinalsMs = elapsedMs(ordinalsStarted);
+  }
+
   timings.totalMs = elapsedMs(started);
   const errors = issues.map((issue) => issue.message);
   const coverage = integrityCoverage(coverageSource, { checked: integrityFromText != null });
@@ -267,6 +279,7 @@ export async function verifyMarkdown(text, { integrityFromText } = {}) {
     checks,
     errors,
     issues,
+    warnings: structuralWarnings,
     integrityCoverage: coverage,
     timings,
   };

@@ -30,6 +30,8 @@ export function remediationFor(check) {
       return "Fix the named markdownlint rule, then verify again.";
     case "integrity":
       return "Restore the missing protected token from the untouched source snapshot.";
+    case "ordinals":
+      return "Preserve the original ordered numbering; do not let formatting or linting renumber meaningful sequences, and reconcile any intended change deliberately.";
     default:
       return "Fix the reported Markdown issue, then verify again.";
   }

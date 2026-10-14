@@ -76,7 +76,7 @@ export function toReceipt(result, {
           : { path: integrityFromPath, hash: integrityFromText == null ? null : hashText(integrityFromText) },
     },
     issues: [...(result.issues ?? [])],
-    warnings: [...(result.integrityCoverage?.warnings ?? [])],
+    warnings: [...(result.integrityCoverage?.warnings ?? []), ...(result.warnings ?? [])],
     integrityCoverage: result.integrityCoverage ?? null,
     timings: result.timings ?? null,
     preview,

@@ -33,7 +33,7 @@ function errorReceipt({ file, candidateText = null, integrityFrom = null, integr
   );
 }
 
-async function verifyOne(file, { integrityFrom, preview }) {
+async function verifyOne(file, { integrityFrom, preview, preserveStructure }) {
   let candidateText = null;
   try {
     candidateText = await readTextSource(file);
@@ -49,7 +49,7 @@ async function verifyOne(file, { integrityFrom, preview }) {
     }
   }
   try {
-    const result = await verifyMarkdown(candidateText, { integrityFromText });
+    const result = await verifyMarkdown(candidateText, { integrityFromText, preserveStructure });
     let previewResult = null;
     if (preview) {
       const sourceText = integrityFromText ?? candidateText;
@@ -98,11 +98,11 @@ function formatSkipped(skipped) {
 }
 
 async function main(argv) {
-  const parsed = parseFlags(argv, ["--integrity-from", "--json", "--preview", "--receipt"]);
+  const parsed = parseFlags(argv, ["--integrity-from", "--json", "--preview", "--receipt", "--preserve-structure"]);
   if (parsed.help) {
     printHelp(
       "WolfMarkDown verifier",
-      "Usage: node scripts/verify-markdown.mjs <file.md|dir|-> [...] [--integrity-from <original.md>] [--preview] [--receipt <out.json>] [--json]",
+      "Usage: node scripts/verify-markdown.mjs <file.md|dir|-> [...] [--integrity-from <original.md>] [--preserve-structure] [--preview] [--receipt <out.json>] [--json]",
     );
     return 0;
   }
@@ -111,6 +111,9 @@ async function main(argv) {
   }
   if (parsed.flags.integrityFrom && isStdinPath(parsed.flags.integrityFrom)) {
     throw new Error("--integrity-from cannot read standard input.");
+  }
+  if (parsed.flags["preserve-structure"] && !parsed.flags.integrityFrom) {
+    throw new Error("--preserve-structure requires --integrity-from for a source baseline.");
   }
   const { files, skipped } = await resolveTargets(parsed.positionals);
   if (parsed.flags.integrityFrom && files.length !== 1 && files.length !== 0) {
@@ -149,7 +152,11 @@ async function main(argv) {
   }
 
   const receipts = await mapLimit(files, CONCURRENCY, (file) =>
-    verifyOne(file, { integrityFrom: parsed.flags.integrityFrom, preview: Boolean(parsed.flags.preview) }),
+    verifyOne(file, {
+      integrityFrom: parsed.flags.integrityFrom,
+      preview: Boolean(parsed.flags.preview),
+      preserveStructure: Boolean(parsed.flags["preserve-structure"]),
+    }),
   ).catch((error) => {
     throw new Error(`Batch verification failed before completing: ${error.message}`);
   });

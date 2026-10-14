@@ -25,7 +25,8 @@ async function main(argv) {
   if (parsed.flags.stdout && parsed.flags.check) {
     throw new Error("Conflicting flags: use either --stdout or --check, not both.");
   }
-  let input = await readTextSource(file);
+  const original = await readTextSource(file);
+  let input = original;
   const label = isStdinPath(file) ? "stdin" : file;
   let safeFixes = 0;
   if (parsed.flags["safe-fixes"]) {
@@ -33,13 +34,22 @@ async function main(argv) {
     input = fixed.text;
     safeFixes = fixed.applied;
     if (safeFixes > 0) {
-      process.stderr.write(`${label}: ${safeFixes} safe citation fix(es) applied\n`);
+      process.stderr.write(
+        `${label}: ${safeFixes} safe citation fix(es) ${parsed.flags.check ? "would be applied" : "applied"}\n`,
+      );
     }
   }
   const formatted = await formatMarkdown(input);
   if (parsed.flags.check) {
-    if (formatted !== input) {
-      process.stderr.write(`${label} is not formatted.\n`);
+    // Check mode compares against the original text: a write pass with the
+    // given flags would change the file whenever formatting or safe fixes
+    // differ from what is on disk.
+    if (formatted !== original) {
+      process.stderr.write(
+        safeFixes > 0
+          ? `${label} is not formatted or requires safe fixes.\n`
+          : `${label} is not formatted.\n`,
+      );
       return 1;
     }
     process.stdout.write(`${label}: already formatted\n`);

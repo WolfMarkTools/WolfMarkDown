@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { checkCitations, findAdjacentCitationPairs, separateAdjacentCitations } from "../lib/citations.mjs";
+import { formatMarkdown } from "../lib/format.mjs";
 import { maskInlineCode } from "../lib/preservation.mjs";
 import { verifyMarkdown } from "../lib/validate.mjs";
 import { readFixture } from "./helpers.mjs";
@@ -158,5 +159,38 @@ test("multiline code spans are masked during detection and safe fixes", () => {
   const fixed = separateAdjacentCitations(doc);
   assert.equal(fixed.applied, 0);
   assert.equal(fixed.text, doc);
+});
+
+test("--check --safe-fixes fails when a write pass would change the input", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "wolfmarkdown-citations-"));
+  const source = await readFixture("synthetic-sources-ledger.md");
+  const withPair = source
+    .replace(/^(\[\d+\] .*)$/gmu, "$1  ")
+    .replace("Alpha Model leads the group [1] [3].", "Alpha Model leads the group [1][2].");
+  const file = join(dir, "doc.md");
+  // An already-formatted candidate whose ledger is printer-surviving: the
+  // only difference a check with safe fixes should see is the citation pair.
+  await writeFile(file, await formatMarkdown(withPair));
+
+  // The pair alone is not a formatting problem: a plain check passes.
+  const cleanCheck = execFileSync(process.execPath, [formatScript, file, "--check"], { encoding: "utf8" });
+  assert.match(cleanCheck, /already formatted/u);
+
+  // With safe fixes requested, the same file must fail the check because a
+  // write pass would still change it.
+  let exitCode = 0;
+  let stderr = "";
+  try {
+    execFileSync(process.execPath, [formatScript, file, "--check", "--safe-fixes"], { encoding: "utf8" });
+  } catch (error) {
+    exitCode = error.status;
+    stderr = error.stderr;
+  }
+  assert.equal(exitCode, 1);
+  assert.match(stderr, /would be applied/u);
+  assert.match(stderr, /requires safe fixes/u);
+
+  // Check mode never writes: the pair is still in the file.
+  assert.ok((await readFile(file, "utf8")).includes("[1][2]"));
 });
 

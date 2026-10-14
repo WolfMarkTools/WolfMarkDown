@@ -148,3 +148,20 @@ test("scaffold inventories record runs and ordinal runs", async () => {
   assert.equal(rankings.ordinalRuns[1].start, 3);
   assert.equal(rankings.ordinalRuns[1].section, "Tier 2 — provisional candidates");
 });
+
+test("records wrapped in inline code cannot satisfy record preservation", async () => {
+  const source = await readFixture("synthetic-sources-ledger.md");
+  const wrapped = [
+    "# Synthetic ledger fixture",
+    "",
+    "## Sources",
+    "",
+    ...ledgerLines.map((line) => "``" + line + "``"),
+    "",
+  ].join("\n");
+  const control = checkRecordPreservation(source, source);
+  assert.equal(control.ok, true, control.issues.map((issue) => issue.message).join("\n"));
+  const result = checkRecordPreservation(source, wrapped);
+  assert.equal(result.ok, false);
+});
+

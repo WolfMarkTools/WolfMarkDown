@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { checkCitations, findAdjacentCitationPairs, separateAdjacentCitations } from "../lib/citations.mjs";
+import { maskInlineCode } from "../lib/preservation.mjs";
 import { verifyMarkdown } from "../lib/validate.mjs";
 import { readFixture } from "./helpers.mjs";
 
@@ -97,3 +98,42 @@ test("format --safe-fixes applies the repair; plain format leaves the pair", asy
   assert.ok(after.includes("[1] [2]"));
   assert.ok(!after.includes("[1][2]"));
 });
+
+test("multi-backtick code spans are masked by delimiter run, not by pairing", () => {
+  const singleTick = maskInlineCode("See `[1][2]` span.");
+  assert.ok(!singleTick.includes("[1][2]") && !singleTick.includes("`"), JSON.stringify(singleTick));
+  assert.equal(singleTick.length, "See `[1][2]` span.".length);
+
+  const doubleTick = maskInlineCode("See ``[1][2]`` span.");
+  assert.ok(!doubleTick.includes("[1][2]") && !doubleTick.includes("`"), JSON.stringify(doubleTick));
+  assert.equal(doubleTick.length, "See ``[1][2]`` span.".length);
+
+  const fourTick = maskInlineCode("See ````[1][2]```` span.");
+  assert.ok(!fourTick.includes("[1][2]") && !fourTick.includes("`"), JSON.stringify(fourTick));
+  assert.equal(fourTick.length, "See ````[1][2]```` span.".length);
+
+  const doc = [
+    "# Doc",
+    "",
+    "See ``[1][2]`` in code and [1][2] live.",
+    "",
+    "## Sources",
+    "",
+    "[1] https://example.com/a",
+    "[2] https://example.com/b",
+    "[3] https://example.com/c",
+    "",
+  ].join("\n");
+  const docLine = doc.split("\n")[2];
+  const codeEnd = docLine.lastIndexOf("`");
+  const pairs = findAdjacentCitationPairs(doc);
+  assert.equal(pairs.length, 1, JSON.stringify(pairs));
+  assert.ok(pairs[0].column - 1 > codeEnd, "the detected pair must be the live text, not the code span");
+
+  const fixed = separateAdjacentCitations(doc);
+  assert.equal(fixed.applied, 1);
+  const fixedLine = fixed.text.split("\n").find((line) => line.includes("in code"));
+  assert.ok(fixedLine.includes("``[1][2]``"), fixedLine);
+  assert.ok(fixedLine.includes("[1] [2] live"), fixedLine);
+});
+

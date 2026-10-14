@@ -286,17 +286,41 @@ export function checkOrdinalPreservation(snapshotText, candidateText, options = 
 
 const RECORD_PREFIX = /^ {0,3}(?:[-*+] )?\[(\d{1,3})\]\s+(\S.*)$/u;
 
+// GFM inline code spans are delimited by equal-length backtick runs; they
+// must be matched by run length, not by pairing individual characters.
+// Returns [start, end) ranges covering the delimiters and their content.
 function codeSpans(line) {
   const spans = [];
-  let open = null;
-  for (let index = 0; index < line.length; index += 1) {
-    if (line[index] !== "`") continue;
-    if (open == null) {
-      open = index;
+  let index = 0;
+  while (index < line.length) {
+    if (line[index] !== "`") {
+      index += 1;
       continue;
     }
-    spans.push([open, index + 1]);
-    open = null;
+    let openEnd = index;
+    while (openEnd < line.length && line[openEnd] === "`") openEnd += 1;
+    const runLength = openEnd - index;
+    let cursor = openEnd;
+    let spanEnd = -1;
+    while (cursor < line.length) {
+      if (line[cursor] !== "`") {
+        cursor += 1;
+        continue;
+      }
+      let closeEnd = cursor;
+      while (closeEnd < line.length && line[closeEnd] === "`") closeEnd += 1;
+      if (closeEnd - cursor === runLength) {
+        spanEnd = closeEnd;
+        break;
+      }
+      cursor = closeEnd;
+    }
+    if (spanEnd === -1) {
+      index = openEnd;
+      continue;
+    }
+    spans.push([index, spanEnd]);
+    index = spanEnd;
   }
   return spans;
 }
@@ -307,15 +331,8 @@ function insideAnySpan(offset, spans) {
 
 export function maskInlineCode(line) {
   const chars = line.split("");
-  let open = null;
-  for (let index = 0; index < chars.length; index += 1) {
-    if (chars[index] !== "`") continue;
-    if (open == null) {
-      open = index;
-      continue;
-    }
-    for (let cursor = open; cursor <= index; cursor += 1) chars[cursor] = " ";
-    open = null;
+  for (const [start, end] of codeSpans(line)) {
+    for (let cursor = start; cursor < end; cursor += 1) chars[cursor] = " ";
   }
   return chars.join("");
 }

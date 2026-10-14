@@ -45,7 +45,7 @@ Declared invariants (`--invariants <file.json>`) extend this with source-grounde
 
 ## Citation diagnostics and safe fixes
 
-Adjacent numeric citations written as `[6][26]` are parsed as one reference link; verification reports a citation-specific issue and remediation, and deduplicates the equivalent MD052 finding by structured rule identifiers and ranges rather than message text. With a recognised ledger, a cross-reference check (enabled by `--preserve-structure`) warns when a numeric citation does not match any record. `format-markdown.mjs --safe-fixes` applies one allow-listed lexical repair — inserting the separating space — in ledger documents only; code, escapes, definitions and genuine reference links are never modified, and ordinary formatting without the flag is unchanged.
+Adjacent numeric citations written as `[6][26]` are parsed as one reference link; verification reports a citation-specific issue and remediation, and deduplicates the equivalent MD052 finding by structured rule identifiers and ranges rather than message text. With a recognised ledger, a cross-reference check (enabled by `--preserve-structure`) warns when a numeric citation does not match any record. `format-markdown.mjs --safe-fixes` applies one allow-listed lexical repair — inserting the separating space — in ledger documents only; code (including multi-backtick spans), escapes, definitions and genuine reference links are never modified, and ordinary formatting without the flag is unchanged.
 
 ## Effective lint configuration
 

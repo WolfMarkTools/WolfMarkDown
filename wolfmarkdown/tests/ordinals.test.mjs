@@ -310,3 +310,43 @@ test("repeated subsection names under different parents do not share a correspon
   assert.deepEqual(ambiguous.warnings.map((warning) => warning.code), ["ordinal-context-ambiguous"]);
 });
 
+test("one candidate list cannot satisfy two source sequences", () => {
+  const source = [
+    "# Doc",
+    "",
+    "## Rankings",
+    "",
+    "1. Alpha Model — first one",
+    "2. Bravo Model — first two",
+    "3. Charlie Model — first three",
+    "",
+    "Interlude text.",
+    "",
+    "1. Alpha Model — second one",
+    "2. Bravo Model — second two",
+    "3. Charlie Model — second three",
+    "",
+  ].join("\n");
+  const oneDeleted = [
+    "# Doc",
+    "",
+    "## Rankings",
+    "",
+    "Interlude text.",
+    "",
+    "1. Alpha Model — second one",
+    "2. Bravo Model — second two",
+    "3. Charlie Model — second three",
+    "",
+  ].join("\n");
+
+  // Two distinct source lists with the same anchors and positions: when the
+  // candidate keeps only one of them, that single list must not satisfy both.
+  const missing = checkOrdinalPreservation(source, oneDeleted);
+  assert.equal(missing.ok, false);
+  assert.ok(missing.issues.some((issue) => /different ordered list/u.test(issue.message)));
+
+  // Keeping both lists passes.
+  assert.equal(checkOrdinalPreservation(source, source).ok, true);
+});
+

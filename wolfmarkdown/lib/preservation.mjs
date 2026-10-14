@@ -188,10 +188,14 @@ export function checkOrdinalPreservation(snapshotText, candidateText, options = 
   const issues = [];
   const warnings = [];
   let itemsChecked = 0;
+  const claimed = new Set();
 
   for (const run of sourceRuns) {
     const anchors = run.items.map((item) => item.anchor);
-    const best = bestCorrespondence(run, candidateRuns);
+    const best = bestCorrespondence(
+      run,
+      candidateRuns.filter((candidate) => !claimed.has(candidate)),
+    );
     const threshold = Math.max(1, Math.ceil(run.count / 2));
     if (best == null || best.score < threshold) {
       const anywhere = candidateRuns.some((candidate) =>
@@ -230,6 +234,10 @@ export function checkOrdinalPreservation(snapshotText, candidateText, options = 
       }
       continue;
     }
+
+    // Each candidate list can correspond to at most one source sequence, so
+    // a single surviving lookalike cannot satisfy two source runs.
+    claimed.add(best.run);
 
     const poolKey = headingPathKey(best.run);
     const pool =

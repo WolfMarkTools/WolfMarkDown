@@ -59,6 +59,8 @@ export function toReceipt(result, {
   candidateText = "",
   integrityFromPath = null,
   integrityFromText,
+  invariantsPath = null,
+  invariantsText = null,
   preview = null,
 } = {}) {
   return {
@@ -74,7 +76,12 @@ export function toReceipt(result, {
         integrityFromPath == null
           ? null
           : { path: integrityFromPath, hash: integrityFromText == null ? null : hashText(integrityFromText) },
+      invariants:
+        invariantsPath == null
+          ? null
+          : { path: invariantsPath, hash: invariantsText == null ? null : hashText(invariantsText) },
     },
+    invariants: result.invariantsEvidence ?? null,
     issues: [...(result.issues ?? [])],
     warnings: [...(result.integrityCoverage?.warnings ?? []), ...(result.warnings ?? [])],
     integrityCoverage: result.integrityCoverage ?? null,

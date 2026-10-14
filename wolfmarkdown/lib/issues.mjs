@@ -32,6 +32,8 @@ export function remediationFor(check) {
       return "Restore the missing protected token from the untouched source snapshot.";
     case "ordinals":
       return "Preserve the original ordered numbering; do not let formatting or linting renumber meaningful sequences, and reconcile any intended change deliberately.";
+    case "records":
+      return "Keep each source record on its own line in the candidate — for example as list items or with two-space hard breaks — so adjacent records do not merge into one paragraph.";
     default:
       return "Fix the reported Markdown issue, then verify again.";
   }

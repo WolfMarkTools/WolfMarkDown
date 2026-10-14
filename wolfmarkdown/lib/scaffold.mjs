@@ -2,6 +2,7 @@ import { visit } from "unist-util-visit";
 import { lineFenceStates } from "./fences.mjs";
 import { integrityCoverage } from "./integrity.mjs";
 import { parseMarkdown } from "./parse.mjs";
+import { detectRecordRuns, extractOrdinalRuns } from "./preservation.mjs";
 import { hashText } from "./report.mjs";
 
 export const SCAFFOLD_NOTE =
@@ -81,6 +82,17 @@ export function documentScaffold(text) {
     lists,
     gfmTables,
     pipeRuns: pipeRuns(text),
+    recordRuns: detectRecordRuns(text).map(({ startLine, endLine, count }) => ({
+      startLine,
+      endLine,
+      count,
+    })),
+    ordinalRuns: extractOrdinalRuns(text).map(({ start, count, line, context }) => ({
+      start,
+      count,
+      line,
+      section: context.length > 0 ? context[context.length - 1].text : null,
+    })),
     tokens: coverage.classes,
     note: SCAFFOLD_NOTE,
   };

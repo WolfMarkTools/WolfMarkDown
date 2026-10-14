@@ -1,5 +1,6 @@
 const VALUE_FLAGS = {
   "--integrity-from": "integrityFrom",
+  "--invariants": "invariants",
   "--receipt": "receipt",
 };
 

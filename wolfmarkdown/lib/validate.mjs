@@ -4,10 +4,11 @@ import { visit } from "unist-util-visit";
 import { assertFencesBalanced, lineFenceStates } from "./fences.mjs";
 import { formatMarkdown } from "./format.mjs";
 import { compareTokenIndexes, extractTokenIndex, integrityCoverage } from "./integrity.mjs";
+import { checkInvariants } from "./invariants.mjs";
 import { createIssue } from "./issues.mjs";
 import { parseMarkdown } from "./parse.mjs";
 import { loadMarkdownlintConfig } from "./paths.mjs";
-import { checkOrdinalPreservation } from "./preservation.mjs";
+import { checkOrdinalPreservation, checkRecordPreservation } from "./preservation.mjs";
 
 const DELIMITER = /^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$/;
 const NON_TABLE_PIPE = /^(?:[-*+]|\d{1,9}[.)])\s|^>|^#{1,6}\s/;
@@ -169,7 +170,7 @@ function elapsedMs(started) {
   return Math.round(performance.now() - started);
 }
 
-export async function verifyMarkdown(text, { integrityFromText, preserveStructure = false } = {}) {
+export async function verifyMarkdown(text, { integrityFromText, preserveStructure = false, invariants = null } = {}) {
   const started = performance.now();
   const timings = {};
   const checks = {
@@ -184,9 +185,12 @@ export async function verifyMarkdown(text, { integrityFromText, preserveStructur
     integrity: integrityFromText == null ? null : false,
     idempotence: false,
     ordinals: integrityFromText != null && preserveStructure ? false : null,
+    records: integrityFromText != null && preserveStructure ? false : null,
+    invariants: invariants == null ? null : false,
   };
   const issues = [];
   const structuralWarnings = [];
+  let invariantsEvidence = null;
 
   const parseStarted = performance.now();
   try {
@@ -268,19 +272,53 @@ export async function verifyMarkdown(text, { integrityFromText, preserveStructur
     issues.push(...ordinals.issues);
     structuralWarnings.push(...ordinals.warnings);
     timings.ordinalsMs = elapsedMs(ordinalsStarted);
+
+    const recordsStarted = performance.now();
+    const records = checkRecordPreservation(integrityFromText, text);
+    checks.records = records.ok;
+    issues.push(...records.issues);
+    structuralWarnings.push(...records.warnings);
+    timings.recordsMs = elapsedMs(recordsStarted);
+  }
+
+  if (invariants != null) {
+    if (integrityFromText == null) {
+      checks.invariants = false;
+      issues.push(
+        createIssue("invariants", "Declared invariants require an untouched source snapshot (--integrity-from)."),
+      );
+    } else {
+      const invariantsStarted = performance.now();
+      const declared = checkInvariants({ declaration: invariants, sourceText: integrityFromText, candidateText: text });
+      checks.invariants = declared.ok;
+      issues.push(...declared.issues);
+      structuralWarnings.push(...declared.warnings);
+      invariantsEvidence = declared.evidence;
+      timings.invariantsMs = elapsedMs(invariantsStarted);
+    }
+  }
+
+  const uniqueIssues = [];
+  const seenIssues = new Set();
+  for (const issue of issues) {
+    const key = `${issue.check}\u0000${issue.message}`;
+    if (seenIssues.has(key)) continue;
+    seenIssues.add(key);
+    uniqueIssues.push(issue);
   }
 
   timings.totalMs = elapsedMs(started);
-  const errors = issues.map((issue) => issue.message);
+  const errors = uniqueIssues.map((issue) => issue.message);
   const coverage = integrityCoverage(coverageSource, { checked: integrityFromText != null });
   coverage.warnings.push(...coverageNotes);
   return {
-    ok: issues.length === 0,
+    ok: uniqueIssues.length === 0,
     checks,
     errors,
-    issues,
+    issues: uniqueIssues,
     warnings: structuralWarnings,
     integrityCoverage: coverage,
     timings,
+    invariantsEvidence,
   };
 }

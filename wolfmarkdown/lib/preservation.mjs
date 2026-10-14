@@ -1,5 +1,5 @@
-// Structure-preservation helpers: ordinal-run extraction and contextual
-// comparison between an untouched source snapshot and a candidate.
+// Structure-preservation helpers: ordinal-run and record-run extraction and
+// contextual comparison between an untouched source snapshot and a candidate.
 //
 // Ordinal runs are compared by item identity — an anchor derived from the
 // item's own text — within the candidate list that best corresponds to the
@@ -9,17 +9,24 @@
 // incidental notation such as marker punctuation, all-ones item numbering,
 // or a printer normalising gaps in a sequential run.
 //
+// Record runs are ledger-style lines (a bracketed numeric label followed by
+// a value, usually a URL). Each source record must survive on its own line,
+// in order, in the candidate; fenced code, indented code and inline code are
+// masked so they cannot satisfy or fabricate records.
+//
 // Checked only when structural preservation is requested; the untouched
 // source snapshot is the baseline.
 import { visit } from "unist-util-visit";
+import { lineFenceStates } from "./fences.mjs";
 import { createIssue } from "./issues.mjs";
 import { parseMarkdown } from "./parse.mjs";
+import { evaluateRecordBoundaries } from "./semantic-eval.mjs";
 
 const MAX_ANCHOR_WORDS = 5;
 const TRAILING_PUNCT = /^[—–\-:;,·•.]+$/u;
 const DASH_SPLIT = /\s+[—–]\s+/u;
 
-function plainText(node) {
+export function plainText(node) {
   if (!node) return "";
   if (node.type === "text" || node.type === "inlineCode") return node.value ?? "";
   if (node.type === "image") return node.alt ?? "";
@@ -259,5 +266,122 @@ export function checkOrdinalPreservation(snapshotText, candidateText, options = 
     warnings,
     runsChecked: sourceRuns.length,
     itemsChecked,
+  };
+}
+
+// --- Record runs ---------------------------------------------------------
+
+const RECORD_PREFIX = /^ {0,3}(?:[-*+] )?\[(\d{1,3})\]\s+(\S.*)$/u;
+
+function codeSpans(line) {
+  const spans = [];
+  let open = null;
+  for (let index = 0; index < line.length; index += 1) {
+    if (line[index] !== "`") continue;
+    if (open == null) {
+      open = index;
+      continue;
+    }
+    spans.push([open, index + 1]);
+    open = null;
+  }
+  return spans;
+}
+
+function insideAnySpan(offset, spans) {
+  return spans.some(([start, end]) => offset >= start && offset < end);
+}
+
+function maskInlineCode(line) {
+  const chars = line.split("");
+  let open = null;
+  for (let index = 0; index < chars.length; index += 1) {
+    if (chars[index] !== "`") continue;
+    if (open == null) {
+      open = index;
+      continue;
+    }
+    for (let cursor = open; cursor <= index; cursor += 1) chars[cursor] = " ";
+    open = null;
+  }
+  return chars.join("");
+}
+
+// Detect ledger-style record runs: three or more consecutive lines that
+// begin with a bracketed numeric label outside fenced code, indented code
+// and inline code. Each record keeps its label and the first token after it
+// (usually the URL) as its identity.
+export function detectRecordRuns(text) {
+  const { lines, inside } = lineFenceStates(text);
+  const runs = [];
+  let current = [];
+  const flush = () => {
+    if (current.length >= 3) {
+      runs.push({
+        startLine: current[0].line,
+        endLine: current[current.length - 1].line,
+        count: current.length,
+        records: current.map((entry) => entry.record),
+      });
+    }
+    current = [];
+  };
+  lines.forEach((line, index) => {
+    if (inside[index] || /^ {4,}/u.test(line)) {
+      flush();
+      return;
+    }
+    const match = line.match(RECORD_PREFIX);
+    if (!match) {
+      flush();
+      return;
+    }
+    const labelOffset = match[0].indexOf("[");
+    if (insideAnySpan(labelOffset, codeSpans(line))) {
+      flush();
+      return;
+    }
+    const label = match[1];
+    const anchor = match[2].trim().split(/\s+/u)[0];
+    current.push({ line: index + 1, record: { label, anchor, tokens: [`[${label}]`, anchor] } });
+  });
+  flush();
+  return runs;
+}
+
+function maskForRecordMatching(text) {
+  const { lines, inside } = lineFenceStates(text);
+  return lines
+    .map((line, index) => {
+      if (inside[index] || /^ {4,}/u.test(line)) return "";
+      return maskInlineCode(line);
+    })
+    .join("\n");
+}
+
+// Each source record must survive on its own line, in order, with its label
+// and value associated. Reuses the semantic-evaluation boundary matcher so
+// "record boundaries" mean the same thing everywhere.
+export function checkRecordPreservation(snapshotText, candidateText, options = {}) {
+  const runs = options.runs ?? detectRecordRuns(snapshotText);
+  if (runs.length === 0) {
+    return { ok: true, issues: [], warnings: [], runsChecked: 0, recordsChecked: 0 };
+  }
+  const records = [];
+  for (const run of runs) {
+    for (const record of run.records) records.push(record.tokens);
+  }
+  const boundary = evaluateRecordBoundaries(maskForRecordMatching(candidateText), records);
+  const issues = [];
+  for (const entry of boundary.results) {
+    if (!entry.error) continue;
+    issues.push(createIssue("records", entry.error, { line: entry.line ?? null }));
+  }
+  return {
+    ok: issues.length === 0,
+    issues,
+    warnings: [],
+    runsChecked: runs.length,
+    recordsChecked: records.length,
   };
 }

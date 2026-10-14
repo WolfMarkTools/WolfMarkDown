@@ -57,6 +57,11 @@ test("SKILL.md satisfies the WolfMarkDown contract", async () => {
   assert.doesNotMatch(text, /documentation formatting/);
   assert.match(text, /snapshot/i);
   assert.match(text, /--integrity-from/);
+  assert.match(text, /--preserve-structure/);
+  assert.match(text, /--runtime-only/);
+  assert.match(text, /--invariants/);
+  assert.match(text, /Structural preservation: Pass\|Fail\|Skipped/);
+  assert.match(text, /renumbered to satisfy a lint rule/);
   assert.match(text, /Do not refresh the snapshot from the edited file/);
   assert.match(text, /Delete the temporary snapshot/);
   assert.match(text, /install\.mjs/);

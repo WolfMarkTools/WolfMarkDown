@@ -51,6 +51,8 @@ node wolfmarkdown/scripts/doctor.mjs
 
 Doctor reports runtime health and discovery health separately. Project-local Clean, Compose, and Verify can proceed when the runtime is healthy even if a global discovery link needs attention. The exit code is 0 when the runtime is healthy; use `--strict` to require overall PASS including discovery.
 
+Runtime repair can be separated from discovery changes: `node wolfmarkdown/scripts/install.mjs --runtime-only` repairs missing or mismatched dependencies only, without creating or changing the shared or compatibility links. This keeps preflight repair from turning a cached plugin copy into the globally discovered installation.
+
 ## Updating a Skills CLI installation
 
 Update the installed skill with:

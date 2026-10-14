@@ -10,16 +10,19 @@ The repository's Node test suite is run with:
 npm test
 ```
 
-At the time of this documentation pass, the suite passes **188 tests**. It covers the current runtime and publication workflow, including:
+At the time of this documentation pass, the suite passes **252 tests**. It covers the current runtime and publication workflow, including:
 
 - CLI flags, batch discovery, standard input, and output-path handling;
-- Doctor runtime/discovery status and installer behaviour;
+- Doctor runtime/discovery status and installer behaviour (`--skip-deps` and `--runtime-only` separation);
 - formatting, idempotence, Markdown parsing, GFM tables, fences, frontmatter, and lint;
 - recognised protected-token extraction and integrity comparison;
-- receipts, previews, issue reporting, target collisions, symlink boundaries, atomic publication, rollback, and failed-output refusal;
+- structural preservation: contextual ordered-numbering checks (item identity and effective position per sequence, including overlapping rankings), record-run boundary preservation, and source-grounded declared invariants (`--preserve-structure`, `--invariants`);
+- citation diagnostics (adjacent numeric citations, MD052 deduplication, ledger cross-reference warnings) and the opt-in citation safe fix;
+- receipts, previews (run counts and line-reduction warnings), issue reporting, target collisions, symlink boundaries, atomic publication, rollback, and failed-output refusal;
 - scaffold inventory and source-map/semantic handoff contracts;
-- semantic property checks, regression signals, skill activation gates, and package/skill contract checks; and
-- JSON verification output and the public example workflow.
+- effective lint-configuration evidence against the pinned markdownlint package;
+- semantic property checks, regression signals (including the mixed-emphasis MD049 fixture), skill activation gates, and package/skill contract checks; and
+- JSON verification output, the public example workflow, and the ranking-and-ledger acceptance fixtures (faithful candidate passes; renumbered tiers and a collapsed ledger fail, with the intact second ranking not satisfying the invariant).
 
 The test command runs the repository's `wolfmarkdown` Node test suite through the root `package.json` script. The individual tests live under [`wolfmarkdown/tests`](../wolfmarkdown/tests/).
 
@@ -51,6 +54,10 @@ CI coverage is evidence that these checks ran in those environments. It is not e
 `npm audit` currently reports one low-severity chain: KaTeX prototype pollution ([GHSA-238p-pmpm-9mq7](https://github.com/advisories/GHSA-238p-pmpm-9mq7)) via `micromark-extension-math` inside `markdownlint`. WolfMarkDown never renders math to HTML; `markdownlint` only lints Markdown text, so the rendering conditions required for exploitation do not apply to this tool's runtime use.
 
 A patched KaTeX release exists, but the installed `micromark-extension-math@3.1.0` depends on `katex ^0.16.0`, which cannot resolve to the patched line — the blocker is a compatible upstream dependency change, not the KaTeX patch itself. The deliberate decision is to track the advisory and revisit it when the dependency chain changes, rather than force a breaking `markdownlint` downgrade or an untested override.
+
+## Lint policy and transparency
+
+The project lint configuration disables MD029. Every MD029 style requires ordered lists to start at 1, which pressures agents to renumber legitimate continuation numbering (for example a Tier 2 list starting at 6 that continues Tier 1). Meaningful numbering is guarded by the structural preservation checks instead, and verification receipts record the effective lint configuration — including disabled rules and the bundled rule inventory — so the active ruleset is auditable.
 
 ## Semantic and property validation
 
@@ -88,7 +95,7 @@ Neither intake record proves that GitHub accepted WolfMarkDown into a directory,
 
 ## Evidence boundary
 
-Tests, CI, skill validation, packaging checks, semantic property checks, public-fixture verification, and host smoke tests establish only the properties they actually exercise. None of them establishes:
+Tests, CI, skill validation, packaging checks, semantic property checks, public-fixture verification, and host smoke tests establish only the properties they actually exercise. Structural preservation checks prove the specific sequence and record-boundary properties they implement; they are not a proof of full semantic equivalence. None of these checks establishes:
 
 - factual correctness;
 - completeness or currency;

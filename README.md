@@ -110,7 +110,7 @@ Failed Clean restores the original file. Failed Compose does not publish an unve
 
 1. The agent reads the source, identifies clear headings, lists, tables, paragraphs, and document boundaries, and preserves genuinely ambiguous regions.
 2. A source map keeps semantic decisions, protected regions, and unresolved ambiguities visible across the document.
-3. Prettier provides the final Markdown print; deterministic checks cover parsing, fences, lint, idempotence, destination protection, failed-output refusal, and — when requested — integrity against the source snapshot.
+3. Prettier provides the final Markdown print; deterministic checks cover parsing, fences, lint, idempotence, destination protection, failed-output refusal, and — when requested — integrity against the source snapshot, structural preservation of ordered numbering and record runs, and source-grounded declared invariants.
 4. A verification receipt and preview can record hashes, versions, checks, integrity coverage, issues, and the quality boundary.
 
 See [Architecture and semantic repair](./docs/architecture.md) for the full workflow.

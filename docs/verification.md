@@ -34,6 +34,23 @@ node wolfmarkdown/scripts/verify-markdown.mjs path/to/file.md --json
 
 Directories are scanned for Markdown files. `--integrity-from` applies to exactly one candidate file and cannot use standard input. A receipt must be written to a distinct path; it cannot overwrite the candidate or the integrity source.
 
+## Structural preservation
+
+`--preserve-structure` (requires `--integrity-from`) enables structure-level comparison against the untouched snapshot:
+
+- **Ordered numbering.** Each ordered list's items are compared by identity and effective position within their own sequence; a matching number in an unrelated ranking does not satisfy preservation, and a renumbered tier fails with the item name and both positions. Where correspondence cannot be established reliably the check reports an `ordinal-context-ambiguous` warning instead of claiming preservation. Renumbering to satisfy a lint rule is never required — MD029 is disabled in the project configuration precisely because every MD029 style demands lists start at 1.
+- **Record runs.** Runs of three or more bracketed records (`[n] value`) outside fenced, indented and inline code are detected in the snapshot; every record must survive on its own line, in order, with its label and value associated. Collapsed ledgers fail even when every label and URL remains; two-space hard breaks and list-item forms pass. Scaffold inventories both run types so the source map can see them.
+
+Declared invariants (`--invariants <file.json>`) extend this with source-grounded requirements: the declaration is validated, bound to the snapshot by SHA-256, `preserve` requirements are checked against the source before the candidate, and `require` headings are candidate-only. Receipts record the declaration hash and grounding evidence.
+
+## Citation diagnostics and safe fixes
+
+Adjacent numeric citations written as `[6][26]` are parsed as one reference link; verification reports a citation-specific issue and remediation, and deduplicates the equivalent MD052 finding by structured rule identifiers and ranges rather than message text. With a recognised ledger, a cross-reference check (enabled by `--preserve-structure`) warns when a numeric citation does not match any record. `format-markdown.mjs --safe-fixes` applies one allow-listed lexical repair — inserting the separating space — in ledger documents only; code, escapes, definitions and genuine reference links are never modified, and ordinary formatting without the flag is unchanged.
+
+## Effective lint configuration
+
+Receipts record the effective lint configuration: the installed markdownlint version, the bundled rule inventory, the rules disabled by project policy, and the normalised overrides. Rules not listed run with markdownlint's defaults for that version; the inventory is guarded by a test against the pinned package.
+
 ## Receipts and previews
 
 `--receipt` records durable evidence such as file hashes, WolfMarkDown and dependency versions, checks, issues, remediations, integrity coverage, and the quality boundary. `--json` emits the machine-readable result.

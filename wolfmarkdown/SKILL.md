@@ -10,7 +10,7 @@ license: MIT
 compatibility: Requires Node.js 22+
 metadata:
   author: WolfMark
-  version: "1.0.2"
+  version: "1.0.3"
   display-name: WolfMarkDown
 ---
 
@@ -71,7 +71,7 @@ Before Clean, Compose, or Verify, run a lightweight health check: `node scripts/
 - Decide local processing from `runtimeOk` only. If `runtimeOk` is true, continue. Do not use top-level `ok` or `overallOk` to decide whether Clean, Compose, or Verify may proceed.
 - `ok` and `overallOk` are overall Doctor health (runtime and discovery together). They may be false when discovery is unhealthy even though local processing is available.
 - `discoveryOk` is shared or project discovery only. An overall FAIL with `runtimeOk` true is a discovery finding, not a reason to stop local Clean, Compose, or Verify. Do not run `npm ci`. Do not treat a missing global discovery link as a reason to reinstall.
-- If `runtimeOk` is false because dependencies are missing or the wrong version, run `node scripts/install.mjs` only as far as needed to repair runtime, then continue.
+- If `runtimeOk` is false because dependencies are missing or the wrong version, run `node scripts/install.mjs --runtime-only` to repair runtime dependencies without creating or changing discovery links, then continue.
 - A missing global link does not block project-local processing.
 
 The user should not have to copy shell commands. Do not ask them to copy shell commands.
@@ -101,19 +101,23 @@ Run Doctor from the project directory to include that checkout's discovery link 
 
 Do not sanitise, compose, or rewrite. Run:
 
-`node scripts/verify-markdown.mjs <file.md|dir|-> [...] [--integrity-from <original.md>] [--preview] [--receipt <out.json>] [--json]`
+`node scripts/verify-markdown.mjs <file.md|dir|-> [...] [--integrity-from <original.md>] [--preserve-structure] [--invariants <file.json>] [--preview] [--receipt <out.json>] [--json]`
 
-Use `-` to read standard input. Directories are scanned recursively for `.md` files. `--integrity-from` is only valid with exactly one file and cannot be standard input. `--receipt` must be a distinct file; it cannot be the candidate, the integrity source, or standard input. Report PASS or FAIL with the verifier issues. `--json` and `--receipt` write a verification receipt: hashes, versions, checks, integrity coverage, issues with remediations, and the quality boundary. `--preview` adds a deterministic source-to-candidate inventory. Preview does not judge semantic decisions.
+Use `-` to read standard input. Directories are scanned recursively for `.md` files. `--integrity-from` is only valid with exactly one file and cannot be standard input. `--receipt` must be a distinct file; it cannot be the candidate, the integrity source, or standard input. Report PASS or FAIL with the verifier issues. `--json` and `--receipt` write a verification receipt: hashes, versions, checks, effective lint configuration, integrity coverage, issues with remediations, and the quality boundary. `--preview` adds a deterministic source-to-candidate inventory. Preview does not judge semantic decisions.
+
+`--preserve-structure` enables snapshot-based structural preservation checks: ordered numbering is compared by item identity and effective position within its own sequence, and record runs must keep each record on its own line in order. Standalone verification without this flag keeps its existing behaviour. `--invariants <file.json>` applies a source-bound declaration of preservation requirements: the declaration is validated, grounded in the untouched snapshot (matched by SHA-256), checked against the candidate, and recorded in the receipt. Both flags require `--integrity-from`.
 
 ## Clean
 
 Before formatting, inspect whether the source contains flattened semantic structure. A Prettier-valid document can still be a failed transformation if it has lost tables, headings, lists, or relationships. Do not let Prettier become the first structural transformation: make the agent-owned semantic decisions and recover clear structure before running the formatter.
 
+Preserve meaning while cleaning: do not renumber ordered sequences to satisfy a lint rule, and do not leave adjacent records that the printer will merge into one paragraph. When the source has recognised record runs or ordered rankings (the scaffold inventories both), verify with `--preserve-structure`; when specific structure must be stated explicitly, declare it with `--invariants` (see [semantic-repair.md](references/semantic-repair.md)).
+
 1. Read the complete existing file.
 2. Snapshot the original bytes to a unique OS temp file. Do not commit it. Do not overwrite it later.
 3. Classify. Sanitise conversation scaffolding only when appropriate. See [conversation-sanitisation.md](references/conversation-sanitisation.md).
 4. Run `node scripts/scaffold-markdown.mjs <snapshot> --json` on the snapshot. Build a source map from that inventory and use the long-document semantic handoff when needed. Classify Preserve, Restructure, Sanitise, Compose, and Unresolved yourself. The scaffold does not rewrite and is not semantic proof. Then repair the candidate and reconcile every clear signal by following [semantic-repair.md](references/semantic-repair.md). Apply [wolfmark-markdown-style.md](references/wolfmark-markdown-style.md) for Markdown conventions. Do not let a syntactically valid, Prettier-stable document substitute for recovered structure. Make the smallest semantic changes needed and do not rewrite already-good prose.
-5. Write a candidate to a temporary file (do not edit the live file yet), format with `format-markdown.mjs`, then verify with `--integrity-from` the snapshot, `--preview`, `--receipt` to a temp JSON file, and `--json`. Do not keep or report PASS without that preview and receipt. Preview does not judge whether a semantic decision was correct.
+5. Write a candidate to a temporary file (do not edit the live file yet), format with `format-markdown.mjs`, then verify with `--integrity-from` the snapshot, `--preserve-structure`, `--preview`, `--receipt` to a temp JSON file, and `--json`. When preservation requirements must be stated explicitly (record counts, ordinal sequences, required headings), write a source-grounded `--invariants` declaration from the snapshot and pass it to the same verification. Do not keep or report PASS without that preview and receipt. Preview does not judge whether a semantic decision was correct.
 6. If verification passes, publish the candidate to the live file. If verification cannot pass, restore the original file from the snapshot before reporting FAIL. See [compose.md](references/compose.md) for publish/restore rules.
 7. Confirm format `--check`. Report. Delete the temporary snapshot after the report, on both PASS and FAIL. Do not refresh the snapshot from the edited file.
 
@@ -127,7 +131,7 @@ See [compose.md](references/compose.md) and [preservation.md](references/preserv
 4. Compose a standalone document. Derive a concise H1 from the source unless the user asked for a fragment, README section, or insert. Do not add YAML frontmatter unless requested, already present, or required by an obvious repo convention.
 5. Remove chat-only scaffolding and convert conversation-dependent language into document language. Do not fabricate missing context or citation URLs.
 6. Run `node scripts/scaffold-markdown.mjs <snapshot> --json` on the snapshot. Use that inventory as the source map and the long-document semantic handoff when needed. Classify Preserve, Restructure, Sanitise, Compose, and Unresolved yourself. Then repair the candidate and reconcile every clear signal by following [semantic-repair.md](references/semantic-repair.md). Apply [wolfmark-markdown-style.md](references/wolfmark-markdown-style.md) for Markdown conventions. Semantic judgement remains agent-owned and deterministic scripts remain proof only.
-7. Write a temporary candidate, format it, and verify it against the source snapshot with `--integrity-from`, `--preview`, `--receipt` to a temp JSON file, and `--json`. Do not publish or report PASS without that preview and receipt. Preview does not decide whether a semantic repair was correct.
+7. Write a temporary candidate, format it, and verify it against the source snapshot with `--integrity-from`, `--preview`, `--receipt` to a temp JSON file, and `--json`. Apply declared preservation requirements (`--invariants`) where the user's request requires specific structure to survive; do not enable `--preserve-structure` unless the user asked to keep the original structure. Do not publish or report PASS without that preview and receipt. Preview does not decide whether a semantic repair was correct.
 8. Publish to the destination only after PASS. Do not leave an unverified file at the destination. Clean up temporary files.
 
 ## Report
@@ -163,6 +167,8 @@ WolfMarkDown
 Operation: Clean
 File: <path>
 Semantic structure: Pass|Fail
+Structural preservation: Pass|Fail|Skipped
+Invariants: <n checked>|None
 Source scope: Complete|Chunked (<reviewed boundaries>)
 Semantic handoff: Complete|<remaining reconciliation>
 Semantic evidence: <source-grounded headings/tables/lists/paragraphs summary>
@@ -185,6 +191,8 @@ WolfMarkDown
 Operation: Compose
 Output: <path>
 Semantic structure: Pass|Fail
+Structural preservation: Pass|Fail|Skipped
+Invariants: <n checked>|None
 Source scope: Complete|Chunked (<reviewed boundaries>)
 Semantic handoff: Complete|<remaining reconciliation>
 Semantic evidence: <source-grounded headings/tables/lists/paragraphs summary>
@@ -206,4 +214,4 @@ Do not report invented metrics. No decorative status symbols.
 
 ## Red flags
 
-Do not report PASS if verify was skipped, verify exited non-zero, Clean or Compose skipped `--preview` or `--receipt`, the target was edited before the snapshot, the edited file was used as `--integrity-from`, a failed Clean left a changed file, a failed Compose published the destination, a code block was sanitised, a protected token was dropped, a legitimate transcript was removed, code was rewritten, a citation URL was invented, the report introduced decorative emoji, the source scope was incomplete without disclosure, or the user was asked to run install or npm commands themselves. Do not claim that PASS validates the source's factual correctness or publication readiness.
+Do not report PASS if verify was skipped, verify exited non-zero, Clean or Compose skipped `--preview` or `--receipt`, the target was edited before the snapshot, the edited file was used as `--integrity-from`, a failed Clean left a changed file, a failed Compose published the destination, a code block was sanitised, a protected token was dropped, a legitimate transcript was removed, code was rewritten, a citation URL was invented, an ordered sequence was renumbered to satisfy a lint rule, a renumbered sequence or collapsed record run was ignored despite `--preserve-structure`, a declared invariant was not grounded in the snapshot, the report introduced decorative emoji, the source scope was incomplete without disclosure, or the user was asked to run install or npm commands themselves. Do not claim that PASS validates the source's factual correctness or publication readiness.

@@ -57,6 +57,11 @@ test("SKILL.md satisfies the WolfMarkDown contract", async () => {
   assert.doesNotMatch(text, /documentation formatting/);
   assert.match(text, /snapshot/i);
   assert.match(text, /--integrity-from/);
+  assert.match(text, /--preserve-structure/);
+  assert.match(text, /--runtime-only/);
+  assert.match(text, /--invariants/);
+  assert.match(text, /Structural preservation: Pass\|Fail\|Skipped/);
+  assert.match(text, /renumbered to satisfy a lint rule/);
   assert.match(text, /Do not refresh the snapshot from the edited file/);
   assert.match(text, /Delete the temporary snapshot/);
   assert.match(text, /install\.mjs/);
@@ -109,9 +114,12 @@ test("SKILL.md satisfies the WolfMarkDown contract", async () => {
 
 test("plugin, package, and skill versions match", async () => {
   const pkg = JSON.parse(await readFile(join(skillRoot, "package.json"), "utf8"));
+  const lock = JSON.parse(await readFile(join(skillRoot, "package-lock.json"), "utf8"));
   const plugin = JSON.parse(await readFile(join(skillRoot, "..", "plugin.json"), "utf8"));
   const skill = await readFile(join(skillRoot, "SKILL.md"), "utf8");
   const skillVersion = skill.match(/^---\n[\s\S]*?^ {2}version:\s*"([^"]+)"/mu)?.[1];
+  assert.equal(lock.version, pkg.version);
+  assert.equal(lock.packages[""].version, pkg.version);
   assert.equal(plugin.version, pkg.version);
   assert.equal(skillVersion, pkg.version);
 });

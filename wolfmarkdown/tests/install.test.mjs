@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdir, readlink, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readlink, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -218,4 +218,40 @@ test("npm failure diagnostics distinguish timeouts, spawn errors, and exit codes
     describeNpmFailure({ status: 1, stdout: "", stderr: "npm ERR! missing lock file" }, 120_000),
     /exit 1[\s\S]*missing lock file/,
   );
+});
+
+test("--runtime-only repairs dependencies without touching discovery links", async () => {
+  await withHome(async (home) => {
+    const dest = join(home, ".agents", "skills", "wolfmarkdown");
+    await mkdir(dest, { recursive: true });
+    await writeFile(join(dest, "SKILL.md"), "foreign\n");
+
+    const result = await installSkill({ home, canonicalDir: skillRoot, runtimeOnly: true });
+    assert.equal(result.status, "runtime-only");
+    assert.deepEqual(result.statuses, {});
+    assert.equal(result.dependenciesRepaired, false);
+    assert.equal(await readFile(join(dest, "SKILL.md"), "utf8"), "foreign\n");
+
+    await assert.rejects(installSkill({ home, canonicalDir: skillRoot }), /not an owned/u);
+  });
+});
+
+test("install.mjs --runtime-only leaves links untouched and rejects conflicting flags", async () => {
+  await withHome(async (home) => {
+    const ran = spawnSync(process.execPath, [join(skillRoot, "scripts", "install.mjs"), "--runtime-only"], {
+      encoding: "utf8",
+      env: { ...process.env, WOLFMARKDOWN_HOME: home, HOME: home },
+    });
+    assert.equal(ran.status, 0, ran.stderr);
+    assert.match(ran.stdout, /runtime-only: dependencies unchanged; discovery links untouched/u);
+    await assert.rejects(stat(join(home, ".agents", "skills", "wolfmarkdown")));
+
+    const conflict = spawnSync(
+      process.execPath,
+      [join(skillRoot, "scripts", "install.mjs"), "--runtime-only", "--check"],
+      { encoding: "utf8", env: { ...process.env, WOLFMARKDOWN_HOME: home, HOME: home } },
+    );
+    assert.notEqual(conflict.status, 0);
+    assert.match(conflict.stderr, /cannot be combined/u);
+  });
 });

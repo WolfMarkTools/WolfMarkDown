@@ -1,12 +1,15 @@
 import { lint as markdownlintSync } from "markdownlint/sync";
 import { parse as parseYaml } from "yaml";
 import { visit } from "unist-util-visit";
+import { checkCitations } from "./citations.mjs";
 import { assertFencesBalanced, lineFenceStates } from "./fences.mjs";
 import { formatMarkdown } from "./format.mjs";
 import { compareTokenIndexes, extractTokenIndex, integrityCoverage } from "./integrity.mjs";
+import { checkInvariants } from "./invariants.mjs";
 import { createIssue } from "./issues.mjs";
 import { parseMarkdown } from "./parse.mjs";
 import { loadMarkdownlintConfig } from "./paths.mjs";
+import { checkOrdinalPreservation, checkRecordPreservation } from "./preservation.mjs";
 
 const DELIMITER = /^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$/;
 const NON_TABLE_PIPE = /^(?:[-*+]|\d{1,9}[.)])\s|^>|^#{1,6}\s/;
@@ -150,25 +153,47 @@ function whitespaceIssues(text) {
   return issues;
 }
 
-function markdownlintIssues(text) {
+function rangesOverlap(left, right) {
+  return left[0] < right[0] + right[1] && right[0] < left[0] + left[1];
+}
+
+// A citation-specific finding supersedes the generic MD052 finding for the
+// same pair. Deduplication is structured — rule identifiers, line and
+// column range — never human-readable message matching.
+function isSuppressedFinding(item, pairs) {
+  if (!item.ruleNames?.includes("MD052")) return false;
+  return pairs.some((pair) => {
+    if (item.lineNumber !== pair.line) return false;
+    if (Array.isArray(item.errorRange) && item.errorRange.length === 2) {
+      return rangesOverlap(item.errorRange, pair.range);
+    }
+    return true;
+  });
+}
+
+function markdownlintIssues(text, { suppressedPairs = [] } = {}) {
   const report = markdownlintSync({
     strings: { document: text },
     config: loadMarkdownlintConfig(),
     resultVersion: 3,
   });
   const findings = report.document ?? [];
-  return findings.map((item) =>
-    createIssue("markdownlint", `markdownlint ${item.ruleNames[0]} on line ${item.lineNumber}: ${item.ruleDescription}`, {
-      line: item.lineNumber,
-    }),
-  );
+  return findings
+    .filter((item) => !isSuppressedFinding(item, suppressedPairs))
+    .map((item) =>
+      createIssue(
+        "markdownlint",
+        `markdownlint ${item.ruleNames[0]} on line ${item.lineNumber}: ${item.ruleDescription}`,
+        { line: item.lineNumber },
+      ),
+    );
 }
 
 function elapsedMs(started) {
   return Math.round(performance.now() - started);
 }
 
-export async function verifyMarkdown(text, { integrityFromText } = {}) {
+export async function verifyMarkdown(text, { integrityFromText, preserveStructure = false, invariants = null } = {}) {
   const started = performance.now();
   const timings = {};
   const checks = {
@@ -182,8 +207,14 @@ export async function verifyMarkdown(text, { integrityFromText } = {}) {
     whitespace: false,
     integrity: integrityFromText == null ? null : false,
     idempotence: false,
+    ordinals: integrityFromText != null && preserveStructure ? false : null,
+    records: integrityFromText != null && preserveStructure ? false : null,
+    invariants: invariants == null ? null : false,
+    citations: false,
   };
   const issues = [];
+  const structuralWarnings = [];
+  let invariantsEvidence = null;
 
   const parseStarted = performance.now();
   try {
@@ -219,8 +250,15 @@ export async function verifyMarkdown(text, { integrityFromText } = {}) {
   if (!checks.prettier) issues.push(createIssue("prettier", "Prettier formatting check failed."));
   timings.prettierMs = elapsedMs(prettierStarted);
 
+  const citationsStarted = performance.now();
+  const citations = checkCitations(text, { crossReference: preserveStructure });
+  checks.citations = citations.ok;
+  issues.push(...citations.issues);
+  structuralWarnings.push(...citations.warnings);
+  timings.citationsMs = elapsedMs(citationsStarted);
+
   const lintStarted = performance.now();
-  const lint = markdownlintIssues(text);
+  const lint = markdownlintIssues(text, { suppressedPairs: citations.pairs });
   checks.markdownlint = lint.length === 0;
   issues.push(...lint);
   timings.markdownlintMs = elapsedMs(lintStarted);
@@ -258,16 +296,60 @@ export async function verifyMarkdown(text, { integrityFromText } = {}) {
     timings.integrityMs = elapsedMs(integrityStarted);
   }
 
+  if (preserveStructure && integrityFromText != null) {
+    const ordinalsStarted = performance.now();
+    const ordinals = checkOrdinalPreservation(integrityFromText, text);
+    checks.ordinals = ordinals.ok;
+    issues.push(...ordinals.issues);
+    structuralWarnings.push(...ordinals.warnings);
+    timings.ordinalsMs = elapsedMs(ordinalsStarted);
+
+    const recordsStarted = performance.now();
+    const records = checkRecordPreservation(integrityFromText, text);
+    checks.records = records.ok;
+    issues.push(...records.issues);
+    structuralWarnings.push(...records.warnings);
+    timings.recordsMs = elapsedMs(recordsStarted);
+  }
+
+  if (invariants != null) {
+    if (integrityFromText == null) {
+      checks.invariants = false;
+      issues.push(
+        createIssue("invariants", "Declared invariants require an untouched source snapshot (--integrity-from)."),
+      );
+    } else {
+      const invariantsStarted = performance.now();
+      const declared = checkInvariants({ declaration: invariants, sourceText: integrityFromText, candidateText: text });
+      checks.invariants = declared.ok;
+      issues.push(...declared.issues);
+      structuralWarnings.push(...declared.warnings);
+      invariantsEvidence = declared.evidence;
+      timings.invariantsMs = elapsedMs(invariantsStarted);
+    }
+  }
+
+  const uniqueIssues = [];
+  const seenIssues = new Set();
+  for (const issue of issues) {
+    const key = `${issue.check}\u0000${issue.message}`;
+    if (seenIssues.has(key)) continue;
+    seenIssues.add(key);
+    uniqueIssues.push(issue);
+  }
+
   timings.totalMs = elapsedMs(started);
-  const errors = issues.map((issue) => issue.message);
+  const errors = uniqueIssues.map((issue) => issue.message);
   const coverage = integrityCoverage(coverageSource, { checked: integrityFromText != null });
   coverage.warnings.push(...coverageNotes);
   return {
-    ok: issues.length === 0,
+    ok: uniqueIssues.length === 0,
     checks,
     errors,
-    issues,
+    issues: uniqueIssues,
+    warnings: structuralWarnings,
     integrityCoverage: coverage,
     timings,
+    invariantsEvidence,
   };
 }

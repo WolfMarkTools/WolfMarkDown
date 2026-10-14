@@ -94,6 +94,15 @@ Split prose at clear changes of subject, conclusion, rationale, risk, or recomme
 
 Preserve protected content exactly. Inline-code styling may be added around identifiers, commands, paths, and instruction names only when the enclosed text remains unchanged. Never rewrite code or configuration to improve prose style.
 
+## Ordered numbering and record runs
+
+Two structural properties are verified deterministically when preservation is requested (`--preserve-structure`):
+
+- **Ordered numbering.** Preserve each ordered list's start value and item order. Do not renumber a sequence to satisfy a lint rule (MD029 is disabled for this reason). Items keep their position within their own sequence — a matching number in an unrelated ranking is not preservation, and verification compares item identity and effective position per sequence.
+- **Record runs.** Keep ledger-style records (three or more consecutive `[n] value` lines) on individual, printer-surviving lines. Two-space hard breaks or list items both survive the printer; adjacent raw rows are collapsed into one paragraph and fail the check.
+
+Declare additional preservation requirements with an `--invariants` declaration derived from the snapshot: expected headings, record counts per section, and ordinal sequences. The verifier grounds every claim against the untouched source (SHA-256 bound) before checking the candidate, so an incorrect declaration is rejected rather than silently satisfied.
+
 ## Reconcile before formatting
 
 Compare the candidate with the source map before running Prettier:

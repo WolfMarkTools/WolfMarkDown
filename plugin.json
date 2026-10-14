@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "wolfmarkdown",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Turn messy agent output into standalone Markdown you can keep. WolfMarkDown composes, cleans, and verifies .md files with agent judgement for structure and deterministic proof before publish.",
   "author": {
     "name": "WolfMark Tools",

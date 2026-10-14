@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
+import { readConfig } from "markdownlint/sync";
 import { formatIssue } from "./issues.mjs";
-import { loadJson } from "./paths.mjs";
+import { loadJson, skillRoot } from "./paths.mjs";
 
 export const QUALITY_BOUNDARY =
   "A PASS is Markdown artifact evidence. It does not establish factual correctness, completeness, currency, policy compliance, or authorisation to publish.";
@@ -27,13 +30,63 @@ export function skillVersions() {
   }
 }
 
+// Effective lint configuration: the pinned markdownlint version, the
+// bundled rule inventory, the rules switched off by this project's policy
+// and the normalised non-false overrides. Rules not listed in
+// disabled/configured run with markdownlint's own defaults for this
+// version; the inventory is derived from the installed, pinned package and
+// is guarded by a test so a dependency bump surfaces any drift.
+export function lintEvidence() {
+  try {
+    const normalised = readConfig(join(skillRoot, "config", "markdownlint.json"));
+    const disabled = [];
+    const configured = {};
+    for (const [key, value] of Object.entries(normalised)) {
+      if (!/^MD\d+$/u.test(key)) continue;
+      if (value === false) disabled.push(key);
+      else configured[key] = value;
+    }
+    let bundledRules = null;
+    try {
+      const libDir = join(skillRoot, "node_modules", "markdownlint", "lib");
+      const files = readdirSync(libDir).filter((name) => /^md[0-9a-z-]*\.mjs$/u.test(name));
+      const ids = [];
+      for (const file of files) {
+        const text = readFileSync(join(libDir, file), "utf8");
+        for (const match of text.matchAll(/"names":\s*\[\s*"(MD\d+)"/gu)) ids.push(match[1]);
+      }
+      bundledRules = ids.sort();
+    } catch {
+      bundledRules = null;
+    }
+    let version = null;
+    try {
+      version = JSON.parse(
+        readFileSync(join(skillRoot, "node_modules", "markdownlint", "package.json"), "utf8"),
+      ).version;
+    } catch {
+      version = null;
+    }
+    return {
+      version,
+      bundledRules,
+      disabled: disabled.sort(),
+      configured,
+      inherited: "Rules not listed in disabled/configured run with markdownlint's defaults for this version.",
+    };
+  } catch (error) {
+    return { error: error?.message ?? String(error) };
+  }
+}
+
 export function formatErrors(errors, issues) {
   if (issues?.length) return issues.map((issue) => formatIssue(issue)).join("\n");
   return errors.map((error) => `- ${error}`).join("\n");
 }
 
 function checkState(passed) {
-  if (passed == null) return { text: "Skip", json: "skip" };
+  if (passed == null || passed === "skip") return { text: "Skip", json: "skip" };
+  if (passed === "fail") return { text: "Fail", json: "fail" };
   if (passed) return { text: "Pass", json: "pass" };
   return { text: "Fail", json: "fail" };
 }
@@ -59,12 +112,25 @@ export function toReceipt(result, {
   candidateText = "",
   integrityFromPath = null,
   integrityFromText,
+  invariantsPath = null,
+  invariantsText = null,
   preview = null,
 } = {}) {
+  const previewWarnings =
+    preview?.lineReduction?.warn === true
+      ? [
+          {
+            code: "large-line-reduction",
+            message: `Non-blank lines fell from ${preview.lineReduction.source} to ${preview.lineReduction.candidate} (${preview.lineReduction.reducedBy} fewer); review for collapsed content. This is a warning, not a failure.`,
+            examples: [],
+          },
+        ]
+      : [];
   return {
     ...toPublicResult(result),
     qualityBoundary: QUALITY_BOUNDARY,
     versions: skillVersions(),
+    lint: lintEvidence(),
     files: {
       candidate:
         candidatePath == null
@@ -74,9 +140,18 @@ export function toReceipt(result, {
         integrityFromPath == null
           ? null
           : { path: integrityFromPath, hash: integrityFromText == null ? null : hashText(integrityFromText) },
+      invariants:
+        invariantsPath == null
+          ? null
+          : { path: invariantsPath, hash: invariantsText == null ? null : hashText(invariantsText) },
     },
+    invariants: result.invariantsEvidence ?? null,
     issues: [...(result.issues ?? [])],
-    warnings: [...(result.integrityCoverage?.warnings ?? [])],
+    warnings: [
+      ...(result.integrityCoverage?.warnings ?? []),
+      ...(result.warnings ?? []),
+      ...previewWarnings,
+    ],
     integrityCoverage: result.integrityCoverage ?? null,
     timings: result.timings ?? null,
     preview,

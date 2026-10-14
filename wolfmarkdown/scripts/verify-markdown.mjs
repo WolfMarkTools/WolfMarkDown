@@ -2,6 +2,7 @@
 
 import { collectMarkdownTargets, mapLimit } from "../lib/batch.mjs";
 import { parseFlags, printHelp } from "../lib/cli.mjs";
+import { parseInvariants } from "../lib/invariants.mjs";
 import { createIssue } from "../lib/issues.mjs";
 import { previewDocuments } from "../lib/preview.mjs";
 import { atomicWriteFile, assertDistinctPath } from "../lib/publish.mjs";
@@ -33,7 +34,7 @@ function errorReceipt({ file, candidateText = null, integrityFrom = null, integr
   );
 }
 
-async function verifyOne(file, { integrityFrom, preview }) {
+async function verifyOne(file, { integrityFrom, preview, preserveStructure, invariants, invariantsPath, invariantsText }) {
   let candidateText = null;
   try {
     candidateText = await readTextSource(file);
@@ -49,7 +50,7 @@ async function verifyOne(file, { integrityFrom, preview }) {
     }
   }
   try {
-    const result = await verifyMarkdown(candidateText, { integrityFromText });
+    const result = await verifyMarkdown(candidateText, { integrityFromText, preserveStructure, invariants });
     let previewResult = null;
     if (preview) {
       const sourceText = integrityFromText ?? candidateText;
@@ -60,6 +61,8 @@ async function verifyOne(file, { integrityFrom, preview }) {
       candidateText,
       integrityFromPath: integrityFrom ?? null,
       integrityFromText,
+      invariantsPath: invariantsPath ?? null,
+      invariantsText: invariantsText ?? null,
       preview: previewResult,
     });
   } catch (error) {
@@ -78,9 +81,15 @@ function printTextReceipt(receipt) {
         `Preview: ${receipt.preview.unchanged ? "unchanged" : receipt.preview.formattingOnly ? "formatting-only" : "changed"}`,
         `Headings ${receipt.preview.structure.headings.source} -> ${receipt.preview.structure.headings.candidate}`,
         `Tables ${receipt.preview.structure.tables.source} -> ${receipt.preview.structure.tables.candidate}`,
+        `Non-blank lines ${receipt.preview.lineReduction.source} -> ${receipt.preview.lineReduction.candidate}`,
         receipt.preview.note,
         "",
       ].join("\n"),
+    );
+  }
+  if (receipt.lint?.version) {
+    process.stdout.write(
+      `Lint: markdownlint ${receipt.lint.version}; ${receipt.lint.bundledRules?.length ?? 0} bundled rule(s), ${receipt.lint.disabled?.length ?? 0} disabled, ${Object.keys(receipt.lint.configured ?? {}).length} configured\n`,
     );
   }
 }
@@ -98,11 +107,11 @@ function formatSkipped(skipped) {
 }
 
 async function main(argv) {
-  const parsed = parseFlags(argv, ["--integrity-from", "--json", "--preview", "--receipt"]);
+  const parsed = parseFlags(argv, ["--integrity-from", "--json", "--preview", "--receipt", "--preserve-structure", "--invariants"]);
   if (parsed.help) {
     printHelp(
       "WolfMarkDown verifier",
-      "Usage: node scripts/verify-markdown.mjs <file.md|dir|-> [...] [--integrity-from <original.md>] [--preview] [--receipt <out.json>] [--json]",
+      "Usage: node scripts/verify-markdown.mjs <file.md|dir|-> [...] [--integrity-from <original.md>] [--preserve-structure] [--invariants <file.json>] [--preview] [--receipt <out.json>] [--json]",
     );
     return 0;
   }
@@ -111,6 +120,27 @@ async function main(argv) {
   }
   if (parsed.flags.integrityFrom && isStdinPath(parsed.flags.integrityFrom)) {
     throw new Error("--integrity-from cannot read standard input.");
+  }
+  if (parsed.flags["preserve-structure"] && !parsed.flags.integrityFrom) {
+    throw new Error("--preserve-structure requires --integrity-from for a source baseline.");
+  }
+  if (parsed.flags.invariants && isStdinPath(parsed.flags.invariants)) {
+    throw new Error("--invariants cannot read standard input.");
+  }
+  if (parsed.flags.invariants && !parsed.flags.integrityFrom) {
+    throw new Error("--invariants requires --integrity-from to bind the declaration to its source snapshot.");
+  }
+  let invariantsDeclaration = null;
+  let invariantsText = null;
+  if (parsed.flags.invariants) {
+    invariantsText = await readTextSource(parsed.flags.invariants);
+    const parsedInvariants = parseInvariants(invariantsText);
+    if (!parsedInvariants.ok) {
+      throw new Error(
+        `Invariants file was rejected:\n${parsedInvariants.errors.map((error) => `- ${error}`).join("\n")}`,
+      );
+    }
+    invariantsDeclaration = parsedInvariants.declaration;
   }
   const { files, skipped } = await resolveTargets(parsed.positionals);
   if (parsed.flags.integrityFrom && files.length !== 1 && files.length !== 0) {
@@ -122,7 +152,7 @@ async function main(argv) {
     }
     await assertDistinctPath(
       parsed.flags.receipt,
-      [...files, parsed.flags.integrityFrom],
+      [...files, parsed.flags.integrityFrom, parsed.flags.invariants],
       `--receipt would overwrite a Markdown source: ${parsed.flags.receipt}`,
     );
   }
@@ -149,7 +179,14 @@ async function main(argv) {
   }
 
   const receipts = await mapLimit(files, CONCURRENCY, (file) =>
-    verifyOne(file, { integrityFrom: parsed.flags.integrityFrom, preview: Boolean(parsed.flags.preview) }),
+    verifyOne(file, {
+      integrityFrom: parsed.flags.integrityFrom,
+      preview: Boolean(parsed.flags.preview),
+      preserveStructure: Boolean(parsed.flags["preserve-structure"]),
+      invariants: invariantsDeclaration,
+      invariantsPath: parsed.flags.invariants ?? null,
+      invariantsText,
+    }),
   ).catch((error) => {
     throw new Error(`Batch verification failed before completing: ${error.message}`);
   });

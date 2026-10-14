@@ -39,35 +39,48 @@ function recordTokens(record) {
   return (Array.isArray(record) ? record : [record]).map((token) => String(token)).filter(Boolean);
 }
 
-export function evaluateRecordBoundaries(candidateText, records = []) {
+export function evaluateRecordBoundaries(candidateText, records = [], { requirePrefix = false } = {}) {
   const lines = nonEmptyLines(candidateText);
   const assigned = [];
   const errors = [];
+  const results = [];
 
   for (const record of records) {
     const tokens = recordTokens(record);
-    if (tokens.length === 0) continue;
+    const label = tokens.join(" ");
+    const prefix = requirePrefix
+      ? new RegExp(`^(?:[-*+] )?${tokens.map(escapeRegExp).join("\\s+")}(?![\\w.-])`, "u")
+      : null;
+    if (tokens.length === 0) {
+      results.push({ label, line: null, error: null });
+      continue;
+    }
     let found = -1;
     for (const line of lines) {
       if (assigned.includes(line.lineNumber)) continue;
+      if (prefix && !prefix.test(line.text)) continue;
       if (tokens.every((token) => lineHasToken(line.text, token))) {
         found = line.lineNumber;
         break;
       }
     }
-    const label = tokens.join(" ");
     if (found === -1) {
-      errors.push(`Record does not survive on its own line: ${label}`);
+      const error = `Record does not survive on its own line: ${label}`;
+      errors.push(error);
+      results.push({ label, line: null, error });
       continue;
     }
     if (assigned.length > 0 && found <= assigned.at(-1)) {
-      errors.push(`Record order or association was lost: ${label}`);
+      const error = `Record order or association was lost: ${label}`;
+      errors.push(error);
+      results.push({ label, line: found, error });
       continue;
     }
     assigned.push(found);
+    results.push({ label, line: found, error: null });
   }
 
-  return { ok: errors.length === 0, assigned, errors };
+  return { ok: errors.length === 0, assigned, errors, results };
 }
 
 export function evaluateSemanticProperties(sourceText, candidateText, properties = {}) {

@@ -13,7 +13,7 @@
 // only in documents with a recognised citation ledger.
 import { lineFenceStates } from "./fences.mjs";
 import { createIssue } from "./issues.mjs";
-import { detectRecordRuns, maskInlineCodeSpans } from "./preservation.mjs";
+import { codeBlockLines, detectRecordRuns, maskInlineCodeSpans } from "./preservation.mjs";
 
 const ADJACENT = /\[(\d{1,3})\]\[(\d{1,3})\]/gu;
 const DEFINITION = /^ {0,3}\[([^\]]+)\]:/u;
@@ -34,7 +34,12 @@ function isEscaped(line, index) {
 
 function visibleLines(text) {
   const { lines, inside } = lineFenceStates(text);
-  return lines.map((line, index) => ({ line, index, skip: inside[index] || /^ {4,}/u.test(line) }));
+  const codeLines = codeBlockLines(text);
+  return lines.map((line, index) => ({
+    line,
+    index,
+    skip: inside[index] || codeLines.has(index + 1) || /^ {4,}/u.test(line),
+  }));
 }
 
 function maskedLines(text) {
@@ -130,9 +135,10 @@ export function separateAdjacentCitations(text) {
   const definitions = referenceDefinitions(text);
   const masked = maskedLines(text);
   const { inside } = lineFenceStates(text);
+  const codeLines = codeBlockLines(text);
   let applied = 0;
   const output = text.split("\n").map((line, index) => {
-    if (inside[index] || /^ {4,}/u.test(line)) return line;
+    if (inside[index] || codeLines.has(index + 1) || /^ {4,}/u.test(line)) return line;
     const matches = [...(masked[index] ?? "").matchAll(ADJACENT)].filter(
       (match) => !isEscaped(line, match.index) && !definitions.has(normaliseLabel(match[2])),
     );

@@ -385,6 +385,24 @@ export function maskInlineCodeSpans(text) {
   return chars.join("");
 }
 
+// Line numbers (1-based) covered by fenced or indented code blocks anywhere
+// in the document, including blocks inside blockquotes and list items.
+export function codeBlockLines(text) {
+  const lines = new Set();
+  try {
+    const { tree } = parseMarkdown(text);
+    visit(tree, "code", (node) => {
+      const start = node.position?.start?.line ?? null;
+      const end = node.position?.end?.line ?? null;
+      if (start == null || end == null) return;
+      for (let line = start; line <= end; line += 1) lines.add(line);
+    });
+  } catch {
+    return lines;
+  }
+  return lines;
+}
+
 // Detect ledger-style record runs: three or more consecutive lines that
 // begin with a bracketed numeric label outside fenced code, indented code
 // and inline code. Each record keeps its label and the first token after it
@@ -429,10 +447,11 @@ export function detectRecordRuns(text) {
 
 function maskForRecordMatching(text) {
   const { lines, inside } = lineFenceStates(text);
+  const codeLines = codeBlockLines(text);
   const masked = maskInlineCodeSpans(text).split("\n");
   return lines
     .map((line, index) => {
-      if (inside[index] || /^ {4,}/u.test(line)) return "";
+      if (inside[index] || codeLines.has(index + 1) || /^ {4,}/u.test(line)) return "";
       return masked[index] ?? "";
     })
     .join("\n");

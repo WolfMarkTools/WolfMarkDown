@@ -207,3 +207,27 @@ test("reference definitions with markdown label whitespace are normalised", asyn
   assert.equal(separateAdjacentCitations(genuine).applied, 0);
 });
 
+test("pairs inside container-prefixed fenced code are never modified", () => {
+  const doc = [
+    "# Doc",
+    "",
+    "> ```text",
+    "> [1][2]",
+    "> ```",
+    "",
+    "## Sources",
+    "",
+    "[1] https://example.com/a",
+    "[2] https://example.com/b",
+    "[3] https://example.com/c",
+    "",
+  ].join("\n");
+
+  assert.equal(findAdjacentCitationPairs(doc).length, 0);
+  assert.equal(checkCitations(doc).ok, true);
+
+  const fixed = separateAdjacentCitations(doc);
+  assert.equal(fixed.applied, 0);
+  assert.equal(fixed.text, doc);
+});
+
